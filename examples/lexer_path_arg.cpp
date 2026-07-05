@@ -27,7 +27,12 @@ int internal_main(int argc,char** argv)
 {
   LOG_CORE_INFO("hello world");
 
-  const char* file_path =R"(D:\k_file\temp\jai-hai\code.hai)";
+  if(argc < 2) {
+    LOG_ERROR("Usage: {} <file_path>",argv[0]);
+    return 1;
+  }
+  const char* file_path = argv[1];
+  
   std::ifstream ifs(file_path,std::ios_base::binary);
   if (!ifs.is_open())
   {

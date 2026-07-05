@@ -70,10 +70,10 @@ Testing/
 
 
 # Custom
-/cmake-build-*/
-/out/
 /.idea/
 /.vscode/
-/jai.7z
+/cmake-build-*/
+/out/
+/build/
 
 

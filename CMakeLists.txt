@@ -16,8 +16,8 @@ target_sources(haic PRIVATE
     src/common/Log.cpp
     src/common/StringView.cpp
 
-    src/main.cpp
-
+    
+    examples/lexer_path_arg.cpp
 )
 
 

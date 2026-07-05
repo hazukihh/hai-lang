@@ -7,6 +7,7 @@
 
 
 #include <string>
+#include <cstring> // memcmp
 using StringView = ::std::string_view;
 
 

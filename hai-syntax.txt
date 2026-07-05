@@ -1,0 +1,20 @@
+@BaseType = s8 | s16 | s32 | s64 
+	| u8 | u16 | u32 | u64
+	| f32 | f64 | void | bool
+@Type =  BaseType | * Type | const Type
+@TypeTuple = (Type1[,Type2,...])
+@ArgList = ([Name1: Type1,Name2: Type2,...])
+
+<var | const> <var_name> [: <type>] [= expr];
+
+fn <fn_name>(<arg_name> : <type>[, ...]) -> void {
+....
+return ;
+}
+
+defer ?  __deinit__ ?
+
+pointer : "&a" or "*a" ?
+  "."  / "->" ?
+  "*p" / "p.*" ?
+  

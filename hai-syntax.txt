@@ -1,9 +1,18 @@
 @BaseType = s8 | s16 | s32 | s64 
 	| u8 | u16 | u32 | u64
-	| f32 | f64 | void | bool
-@Type =  BaseType | * Type | const Type
-@TypeTuple = (Type1[,Type2,...])
-@ArgList = ([Name1: Type1,Name2: Type2,...])
+	| f32 | f64 | void | bool | string
+@Type =  @BaseType 
+	| * @Type 
+	| const @Type
+@TypeTuple = (@Type , @Type  @TypeTupleTail) 
+@TypeTupleTail = NUL 
+	| , Type TypeTupleTail
+
+@ArgList = (@Arg)
+@Arg = NUL 
+	| string : @Type @ArgTail
+@ArgTail = NUL 
+	| , string : @Type @ArgTail
 
 <var | const> <var_name> [: <type>] [= expr];
 

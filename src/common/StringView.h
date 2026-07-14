@@ -34,6 +34,9 @@ using StringView = ::std::string_view;
   return ::std::string(sv.begin(), sv.end());
 }
 
+/**
+ * @brief trim_left the char in {' ','\t',\n','\v','f','r'}(isspace)
+ */
 StringView sv_trim_left(StringView sv) {
   size_t i = 0;
   size_t size = sv.size();

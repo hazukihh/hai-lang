@@ -7,37 +7,6 @@
 #include <deque>
 
 
-// #define CONSUME_CASE_X(Name,Ch)\
-//   case Ch :{\
-//     tokens.push_back({.type = EToken_Punct,.punct = EPunct_##Name});\
-//     break;\
-//   }
-//
-// #define CONSUME_UNARY_OPS_CASE_EXPAND(X_MACRO)\
-//   X_MACRO(Add         ,'+')\
-//   X_MACRO(Subtract    ,'-')\
-//   X_MACRO(Multiply    ,'*')\
-//   X_MACRO(Divide      ,'/')\
-//   X_MACRO(LParen      ,'(')\
-//   X_MACRO(RParen      ,')')\
-//   X_MACRO(LBrace      ,'{')\
-//   X_MACRO(RBrace      ,'}')\
-//   X_MACRO(LBracket    ,'[')\
-//   X_MACRO(RBracket    ,']')\
-//   X_MACRO(Not         ,'!')\
-//   X_MACRO(BitAnd      ,'&')\
-//   X_MACRO(BitOr       ,'|')\
-//   X_MACRO(BitXor      ,'^')\
-//   X_MACRO(BitNot      ,'~')\
-//   X_MACRO(Comma       ,',')\
-//   X_MACRO(Dot         ,'.')\
-//   X_MACRO(Colon       ,':')\
-//   X_MACRO(Semicolon   ,';')\
-//   X_MACRO(Assign      ,'=')\
-//   X_MACRO(LessThan    ,'<')\
-//   X_MACRO(GreaterThan ,'>')
-
-
 
 struct Lexer
 {
@@ -192,7 +161,7 @@ struct Lexer
         // Chop until endline
         size_t pos = input_.find('\n');
         if(pos == StringView::npos) {
-          pos = input_.size() - 1;
+          pos = input_.size();
         }
         input_ = sv_slice(input_,pos+1);
 
@@ -206,28 +175,29 @@ struct Lexer
     }
 
     if(input_.empty()) {
-      return Token{.type = EToken_EOF};
+      return Token{.type = ETK_EOF};
     }
 
     // Puncts
-    assert(EStr_Puncts[0][1] != '\0' && "should check the binary ops first");
+    assert(kEStr_Puncts[0][1] != '\0' && "should check the 2-char ops first");
     /**
      * TODO：how to optimize from O(n) to O(1)
-     *    ？先hash检查是否是unary ops,如果是就检查下一个字符，是否可以binary
+     *    ？先hash检查是否是one char ops,如果是就检查下一个字符，是否可以2 char ops
      */
-    for(size_t i = 0; i < EPunct_Count; ++i) {
-      const char* punct_str = EStr_Puncts[i];
+    for(size_t i = ETK_PUNCT_START; i < ETK_PUNCT_END; ++i) {
+      const char* punct_str = EStrPunct(static_cast<ETokenType>(i));
+
       if(sv_starts_with(input_,punct_str)) {
         size_t punct_str_len = strlen(punct_str);
         input_ = sv_slice(input_,punct_str_len);
         return Token{
-          .type = EToken_Punct,
-          .punct = static_cast<EPunct>(i)
+          .type = static_cast<ETokenType>(i)
         };
       }
     }
 
     // Int literal
+    // TODO: hex: 0X/0x...; Oct 0O/0o...
     if(isdigit(input_[0])) {
       size_t pos = 0;
       while(pos < input_.size() && isdigit(input_[pos])) {
@@ -237,12 +207,13 @@ struct Lexer
       input_ = sv_slice(input_,pos);
 
       return Token{
-        .type = EToken_Literal,
-        .literal_index = StrTable_Add(literal_sv)
+        .type = ETK_IntLit,
+        .text = literal_sv
       };
     }
 
     // TODO: float literal
+    // TODO: string literal "..."
 
 
     // Identifier / Keyword
@@ -257,20 +228,19 @@ struct Lexer
       input_ = sv_slice(input_,pos);
 
       // Keyword
-      EKeyword keyword_index = IsKeyword(sv);
-      if (keyword_index != EKeyword_count)
+      ETokenType keyword_index = KeywordId(sv);
+      if (keyword_index != ETK_None)
       {
         return Token{
-          .type = EToken_Keyword,
-          .keyword = keyword_index
+          .type = keyword_index
         };
       }
 
 
       // Identifier
       return Token{
-        .type = EToken_Identifier,
-        .identifier_index = StrTable_Add(sv)
+        .type = ETK_Identifier,
+        .text = sv
       };
     }
 
@@ -278,8 +248,18 @@ struct Lexer
     LOG_WARN("Unknown character: {}", input_[0]);
     input_ = sv_slice(input_,1);
 
-    return Token{.type = EToken_None};
+    return Token{.type = ETK_None};
   }
 
 
+  Token peek() {
+    StringView input_copy = input_;
+    Token token = get_token();
+    input_ = input_copy;
+    return token;
+  }
+
+  Token next() {
+    return get_token();
+  }
 };

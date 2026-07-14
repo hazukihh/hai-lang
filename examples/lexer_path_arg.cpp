@@ -27,12 +27,12 @@ int internal_main(int argc,char** argv)
 {
   LOG_CORE_INFO("hello world");
 
-  if(argc < 2) {
+  if(argc != 2) {
     LOG_ERROR("Usage: {} <file_path>",argv[0]);
     return 1;
   }
   const char* file_path = argv[1];
-  
+
   std::ifstream ifs(file_path,std::ios_base::binary);
   if (!ifs.is_open())
   {
@@ -51,10 +51,10 @@ int internal_main(int argc,char** argv)
 
   for(;;) {
     Token token = lexer.get_token();
-    if(token.type == EToken_EOF) {
+    if(token.type == ETK_EOF) {
       break;
     }
-    LOG_INFO("{} \t\t {}",token.to_str(),EStr_TokenType[token.type]);
+    LOG_INFO("{} \t\t {}",token.to_str(),kETokenTypeName[token.type]);
   }
 
 

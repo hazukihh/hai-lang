@@ -1,0 +1,25 @@
+var x = 1+2 + 4 -  1*5673/2; // comment1
+// comment2
+if x && true {
+  x.*; // error synax,x is not pointer
+  x : ddd; // error synax
+  x : s32; // error synax
+  return "hai"; // string liter
+}
+
+var hex : s32 = 0xFA
+var oct = 0o18
+var x = -2 + 4 - 1 * 5673/2;
+var y: f32 = x;
+var z = 0.1 // default type f32
+var w = 0.0000000000000001 // if f32 overflow,then f64
+var p = &x;
+
+struct X {
+  str : string;
+}
+
+if x && y {
+  p.* = 44;
+  var z = p.*;
+}

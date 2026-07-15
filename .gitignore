@@ -79,4 +79,4 @@ Testing/
 /tests/*.exe
 /tests/*.sh
 /tests/Makefile
-/src/syntax_parser.h
+

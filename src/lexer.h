@@ -1,3 +1,4 @@
+#pragma once
 #include "common/Log.h"
 #include "common/Defer.hpp"
 #include "common/StringView.h"

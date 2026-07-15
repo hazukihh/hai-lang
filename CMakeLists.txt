@@ -19,9 +19,10 @@ target_sources(haic PRIVATE
     src/version.h
     src/tokens_def.h
     src/lexer.h
-    # src/syntax_parser.h
+     src/syntax_parser.h
 
-    examples/lexer_path_arg.cpp
+#    examples/lexer_path_arg.cpp
+    examples/parser.cpp
 )
 
 

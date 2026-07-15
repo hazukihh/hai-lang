@@ -78,8 +78,6 @@ constexpr const char* SlComment = "//";
 
 
 
-
-// TODO: merge EKeyword,EPunct into ETokenType and replace the EToken_Keyword,EToken_Punct
 #define KEYWORD_ENUM_X(Name) ETK_##Name
 #define PUNCT_ENUM_X(Name,Str) ETK_##Name
 

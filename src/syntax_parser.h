@@ -4,7 +4,7 @@
 
 #include <cassert>
 #include <iostream>
-#include <queue>
+#include <memory>
 
 
 inline void error(const Token& t,StringView msg) {
@@ -12,18 +12,31 @@ inline void error(const Token& t,StringView msg) {
   exit(1);
 }
 
+// TODO: Arena
+#if defined(DEBUG) || defined(_DEBUG)
+inline size_t g_allocted_size = 0;
+#define G_OPERATOR_NEW_WATCHER\
+  void* operator new(size_t size){\
+    g_allocted_size += size;\
+    return ::operator new(size);\
+  }\
+  void operator delete(void* ptr,size_t size) {\
+    g_allocted_size -= size;\
+    return ::operator delete(ptr);\
+  }
+#endif
 
 struct AstNode {
+  using Ptr = std::unique_ptr<AstNode>;
+
   Token atom {.type = ETokenType::ETK_None};
-  // TODO: store by left+right or vec![]
-  AstNode* left = nullptr;
-  AstNode* right = nullptr;
+  // TODO: store by left+right or vec![] ? which better ?
+  Ptr left = nullptr;
+  Ptr right = nullptr;
 
-  ~AstNode() {
-    delete left;
-    delete right;
-  }
-
+#if defined(DEBUG) || defined(_DEBUG)
+  G_OPERATOR_NEW_WATCHER
+#endif
 
   void print(std::string (*get_value)(const Token& t),int depth = 0) const
   {
@@ -53,21 +66,21 @@ struct AstNode {
 
 
 
-using PrefixFn = AstNode* (*)(Lexer *, AstNode *);
-using InfixFn = AstNode* (*)(Lexer *, AstNode *);
+using PrefixFn = AstNode::Ptr (*)(Lexer *, AstNode::Ptr);
+using InfixFn = AstNode::Ptr (*)(Lexer *, AstNode::Ptr);
 
-static AstNode* parse_expression(Lexer *lexer, int rbp);
+static AstNode::Ptr parse_expression(Lexer *lexer, int rbp);
 
-static AstNode* prefix_number(Lexer *, AstNode *);
-static AstNode* prefix_minus(Lexer *, AstNode *);
-static AstNode* prefix_lparen(Lexer *, AstNode *);
+static AstNode::Ptr prefix_number(Lexer *, AstNode::Ptr);
+static AstNode::Ptr prefix_minus(Lexer *, AstNode::Ptr);
+static AstNode::Ptr prefix_lparen(Lexer *, AstNode::Ptr);
 
-static AstNode* infix_binary(Lexer *lexer, AstNode * node);
-// static AstNode* infix_plus(Lexer *, AstNode *);
-// static AstNode* infix_minus(Lexer *, AstNode *);
-// static AstNode* infix_start(Lexer *, AstNode *);
-// static AstNode* infix_slash(Lexer *, AstNode *);
-static AstNode* infix_assign(Lexer *lexer, AstNode * node);
+static AstNode::Ptr infix_binary(Lexer *lexer, AstNode::Ptr node);
+// static AstNode::Ptr infix_plus(Lexer *, AstNode::Ptr);
+// static AstNode::Ptr infix_minus(Lexer *, AstNode::Ptr);
+// static AstNode::Ptr infix_start(Lexer *, AstNode::Ptr);
+// static AstNode::Ptr infix_slash(Lexer *, AstNode::Ptr);
+static AstNode::Ptr infix_assign(Lexer *lexer, AstNode::Ptr node);
 
 struct Rule
 {
@@ -124,21 +137,20 @@ enum class EPrecedence
 
 
 
-
-static AstNode* prefix_number(Lexer *lexer, AstNode * node) {
+static AstNode::Ptr prefix_number(Lexer *, AstNode::Ptr node) {
   return node;
 }
 
-static AstNode* prefix_minus(Lexer *lexer, AstNode * node)
+static AstNode::Ptr prefix_minus(Lexer *lexer, AstNode::Ptr node)
 {
-  auto* operand = parse_expression(lexer, 150);
-  node->right = operand;
+  auto operand = parse_expression(lexer, 150);
+  node->right = std::move(operand);
   return node;
 }
 
-static AstNode* prefix_lparen(Lexer *lexer, AstNode * node)
+static AstNode::Ptr prefix_lparen(Lexer *lexer, AstNode::Ptr node)
 {
-  auto* result = parse_expression(lexer, 0);
+  auto result = parse_expression(lexer, 0);
   const Token t = lexer->next();
   if (t.type != ETK_RParen)
   {
@@ -150,20 +162,19 @@ static AstNode* prefix_lparen(Lexer *lexer, AstNode * node)
 }
 
 
-static AstNode* infix_binary(Lexer *lexer, AstNode * node)
+static AstNode::Ptr infix_binary(Lexer *lexer, AstNode::Ptr node)
 {
   const auto& rule = GetRules(node->atom.type);
-  auto* right = parse_expression(lexer, rule.lbp - rule.is_right);
-  // node->left = node->left;
-  node->right = right;
+  auto right = parse_expression(lexer, rule.lbp - rule.is_right);
+  node->right = std::move(right);
   return node;
 }
 
-static AstNode* infix_assign(Lexer *lexer, AstNode * node)
+static AstNode::Ptr infix_assign(Lexer *lexer, AstNode::Ptr node)
 {
   const auto& rule = GetRules(node->atom.type);
-  auto* right = parse_expression(lexer, rule.lbp - rule.is_right);
-  node->right = right;
+  auto right = parse_expression(lexer, rule.lbp - rule.is_right);
+  node->right = std::move(right);
   return node;
 }
 
@@ -171,33 +182,33 @@ static AstNode* infix_assign(Lexer *lexer, AstNode * node)
 /**
  * @brief  Pratt parser for parsing expressions.
  */
-AstNode* parse_expression(Lexer *lexer, int rbp) {
-  auto* left = new AstNode{lexer->next()};
+AstNode::Ptr parse_expression(Lexer *lexer, int rbp)
+{
+  auto left = std::make_unique<AstNode>(lexer->next());
 
   const PrefixFn prefix_fn = GetRules(left->atom.type).prefix;
   if (!prefix_fn) {
     error(left->atom,"expect expression");
     return nullptr;
   }
-  left = prefix_fn(lexer, left);
+  left = prefix_fn(lexer, std::move(left));
 
   for (;;) {
-    auto* op = new AstNode{lexer->peek()};
+    AstNode::Ptr op = std::make_unique<AstNode>(lexer->peek());
     const auto& rule = GetRules(op->atom.type);
     if (rule.lbp == 0 || rbp >= rule.lbp) {
       break;
     }
 
-    lexer->next();
+    lexer->next(); // consume
     const InfixFn infix_fn = rule.infix;
     if (!infix_fn) {
       error(op->atom,"");
       break;
     }
 
-    auto* current = new AstNode{op->atom};
-    current->left = left;
-    left = infix_fn(lexer, current);
+    op->left = std::move(left);
+    left = infix_fn(lexer, std::move(op));
   }
 
   return left;

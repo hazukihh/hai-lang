@@ -38,7 +38,7 @@ void Log::Init(const char* pattern /*= nullptr*/)
 
 
   /// for spdlog::get("logger_name");
-  // FIXME: throw_if_exists_ here ？
+  // FIXME: why throw exception if use register_logger?
   /*spdlog::register_logger(s_CoreLogger);
   spdlog::register_logger(s_ClientLogger);*/
 }

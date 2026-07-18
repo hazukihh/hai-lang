@@ -12,6 +12,9 @@ using StringView = ::std::string_view;
 
 
 [[nodiscard]] ::std::string sv_to_str(StringView sv);
+/**
+ * @brief trim_left the char in {' ','\t',\n','\v','\f','\r'}(isspace)
+ */
 [[nodiscard]] StringView sv_trim_left(StringView sv);
 [[nodiscard]] StringView sv_trim_right(StringView sv);
 [[nodiscard]] StringView sv_trim(StringView sv);
@@ -34,9 +37,7 @@ using StringView = ::std::string_view;
   return ::std::string(sv.begin(), sv.end());
 }
 
-/**
- * @brief trim_left the char in {' ','\t',\n','\v','f','r'}(isspace)
- */
+
 StringView sv_trim_left(StringView sv) {
   size_t i = 0;
   size_t size = sv.size();
@@ -44,7 +45,7 @@ StringView sv_trim_left(StringView sv) {
   while (i < size && isspace(data[i])) {
     i += 1;
   }
-  return StringView(data + i, size - i);
+  return StringView{data + i, size - i};
 }
 StringView sv_trim_right(StringView sv) {
   size_t i = 0;
@@ -54,7 +55,7 @@ StringView sv_trim_right(StringView sv) {
     i += 1;
   }
 
-  return StringView(data, size - i);
+  return StringView{data, size - i};
 }
 StringView sv_trim(StringView sv) {
   return sv_trim_right(sv_trim_left(sv));
@@ -119,16 +120,16 @@ bool sv_divide(StringView sv, int delim, StringView& left, StringView& right) {
 
 StringView sv_slice(StringView sv, size_t start, size_t end) {
   if (start >= sv.size()) {
-    return StringView();
+    return StringView{sv.data() + sv.size(),0};
   }
   if (end > sv.size()) {
     end = sv.size();
   }
   if (start >= end) {
-    return StringView();
+    return StringView{sv.data() + end,0};
   }
 
-  return StringView(sv.data() + start, end - start);
+  return StringView{sv.data() + start, end - start};
 }
 
 StringView sv_slice(StringView sv, size_t start) {

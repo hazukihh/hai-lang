@@ -8,12 +8,37 @@
 #include <deque>
 
 
+inline void error_at(const Token& t,StringView msg) {
+  fmt::memory_buffer buf;
+  fmt::format_to(std::back_inserter(buf),
+    "at line {}({})\n{}\n",
+      t.line,t.column,
+      StringView{t.text.data() - t.column,t.column + t.text.size()}
+    );
+  size_t offset = t.column;
+  for (int i =0;i < offset;++i)
+  {
+    buf.push_back(' ');
+  }
+  fmt::format_to(std::back_inserter(buf),
+    "^ got {}, {}",get_type_tag_str(t.type),msg);
+
+  LOG_ERROR(fmt::to_string(buf));
+  exit(1);
+}
+
+inline void error_at(const Token& t,ETokenType expected) {
+  error_at(t,fmt::format("expected \"{}\"",get_type_tag_str(expected)));
+}
 
 struct Lexer
 {
   std::string_view input_;
 
-  // TODO: bol,row
+  // base of row
+  const char* base_;
+  uint32_t row_ = 1;
+
 
   /*
   void consume(char ch)
@@ -149,13 +174,27 @@ struct Lexer
   }
   */
 
-
+  [[nodiscard]]
   Token get_token()
   {
     // Trim left-whitespace / Comments
-    while(input_.size() > 0)
+    while(!input_.empty())
     {
-      input_ = sv_trim_left(input_);
+      // input_ = sv_trim_left(input_);
+      {
+        size_t i = 0;
+        size_t size = input_.size();
+        const char* data = input_.data();
+        while (i < size && isspace(data[i])) {
+          if (data[i] == '\n') {
+            row_ += 1;
+            base_ = data + i + 1;
+          }
+
+          i += 1;
+        }
+        input_ =  StringView{data + i, size - i};
+      }
 
       if(sv_starts_with(input_,SlComment)) {
 
@@ -163,6 +202,9 @@ struct Lexer
         size_t pos = input_.find('\n');
         if(pos == StringView::npos) {
           pos = input_.size();
+        } else {
+          row_ += 1;
+          base_ = input_.data() + pos + 1;
         }
         input_ = sv_slice(input_,pos+1);
 
@@ -176,7 +218,12 @@ struct Lexer
     }
 
     if(input_.empty()) {
-      return Token{.type = ETK_EOF};
+      return Token{
+        .type = ETK_EOF,
+        .text = input_,
+        .line = row_,
+        .column = static_cast<uint32_t>(input_.data() - base_)
+      };
     }
 
     // Puncts
@@ -189,16 +236,23 @@ struct Lexer
       const char* punct_str = EStrPunct(static_cast<ETokenType>(i));
 
       if(sv_starts_with(input_,punct_str)) {
-        size_t punct_str_len = strlen(punct_str);
+        auto punct_str_len = strlen(punct_str);
+
+        StringView sv = sv_slice(input_,0,punct_str_len);
         input_ = sv_slice(input_,punct_str_len);
+
         return Token{
-          .type = static_cast<ETokenType>(i)
+          .type = static_cast<ETokenType>(i),
+          .text = sv,
+          .line = row_,
+          .column = static_cast<uint32_t>(sv.data() - base_)
         };
       }
     }
 
     // Int literal
     // TODO: hex: 0X/0x...; Oct 0O/0o...
+    // TODO: float literal
     if(isdigit(input_[0])) {
       size_t pos = 0;
       while(pos < input_.size() && isdigit(input_[pos])) {
@@ -209,12 +263,85 @@ struct Lexer
 
       return Token{
         .type = ETK_IntLit,
-        .text = literal_sv
+        .text = literal_sv,
+        .line = row_,
+        .column = static_cast<uint32_t>(literal_sv.data() - base_)
       };
     }
 
-    // TODO: float literal
-    // TODO: string literal "..."
+    // TODO: how to deal with Conflict in Punct '\"' '\'' => remove them from puncts
+    // String literal "..."
+    if (input_[0] == '"')
+    {
+      size_t pos = 1;
+      while (pos < input_.size() && input_[pos] != '"' && input_[pos] != '\n')
+      {
+        ++pos;
+      }
+
+      // pos.* == '\"'        => input_[0:pos+1)
+      // TODO: Tip: warning: lack Right-'\"', but assume there has one and correct. Or directly error here
+      // pos == input_.size() => input_[0:pos+1) => input_[0:size()+1) => input_[0:size()) => input_[0:pos)
+      // pos.* == '\n'        => input_[0:pos) , leave the rest for next-get in order to support row_/base_
+      StringView sv;
+      if (pos < input_.size() && input_[pos] == '"') {
+        sv = StringView{input_.data(),pos+1};
+        input_ = sv_slice(input_,pos+1);
+      } else {
+        LOG_WARN("StringLiteral lack Right-'\"'");
+        sv = StringView{input_.data(),pos};
+        input_ = sv_slice(input_,pos);
+
+        // TODO: Option for Strict Mode
+        error_at(Token{
+          .type = ETK_StrLit,
+          .text = sv,
+          .line = row_,
+          .column = static_cast<uint32_t>(sv.data() - base_)
+        },"StringLiteral lack Right-'\"'(Strict Mode)");
+      }
+      return Token{
+        .type = ETK_StrLit,
+        .text = sv,
+        .line = row_,
+        .column = static_cast<uint32_t>(sv.data() - base_)
+      };
+    }
+
+    // Char literal '...'
+    if (input_[0] == '\'')
+    {
+      size_t pos = 1;
+      while (pos < input_.size() && input_[pos] != '\'' && input_[pos] != '\n')
+      {
+        ++pos;
+      }
+
+      // TODO: Similar to StringLit. Should be error when the char len > 1 ? or delay ?
+      StringView sv;
+      if (pos < input_.size() && input_[pos] == '\'') {
+        sv = StringView{input_.data(),pos+1};
+        input_ = sv_slice(input_,pos+1);
+      } else {
+        LOG_WARN("CharLiteral lack Right-'\''");
+        sv = StringView{input_.data(),pos};
+        input_ = sv_slice(input_,pos);
+
+        // TODO: Option for Strict Mode
+        error_at(Token{
+          .type = ETK_CharLit,
+          .text = sv,
+          .line = row_,
+          .column = static_cast<uint32_t>(sv.data() - base_)
+        },"CharLiteral lack Right-'\''(Strict Mode)");
+      }
+      return Token{
+        .type = ETK_CharLit,
+        .text = sv,
+        .line = row_,
+        .column = static_cast<uint32_t>(sv.data() - base_)
+      };
+    }
 
 
     // Identifier / Keyword
@@ -233,7 +360,10 @@ struct Lexer
       if (keyword_index != ETK_None)
       {
         return Token{
-          .type = keyword_index
+          .type = keyword_index,
+          .text = sv,
+          .line = row_,
+          .column = static_cast<uint32_t>(sv.data() - base_)
         };
       }
 
@@ -241,26 +371,53 @@ struct Lexer
       // Identifier
       return Token{
         .type = ETK_Identifier,
-        .text = sv
+        .text = sv,
+        .line = row_,
+        .column = static_cast<uint32_t>(sv.data() - base_)
       };
     }
 
     // Unknown character
     LOG_WARN("Unknown character: {}", input_[0]);
+    Token unknown = {
+      .type = ETK_None,
+      .text = sv_slice(input_,0,1),
+      .line = row_,
+      .column = static_cast<uint32_t>(input_.data() - base_)
+    };
     input_ = sv_slice(input_,1);
-
-    return Token{.type = ETK_None};
+    return unknown;
   }
 
-
+  [[nodiscard]]
   Token peek() {
-    StringView input_copy = input_;
-    Token token = get_token();
-    input_ = input_copy;
-    return token;
+    Lexer lexer_copy = *this;
+    return lexer_copy.get_token();
   }
 
+  [[nodiscard]]
   Token next() {
     return get_token();
+  }
+
+  void consume() {
+    (void)get_token();
+  }
+  bool skip(ETokenType expected) {
+    Token  t = get_token();
+    if (t.type != expected)
+    {
+      error_at(t,expected);
+      return false;
+    }
+    return true;
+  }
+  Token expect(ETokenType expected) {
+    const Token  t = get_token();
+    if (t.type != expected)
+    {
+      error_at(t,expected);
+    }
+    return t;
   }
 };

@@ -14,12 +14,18 @@
 @ArgTail = NUL 
 	| , string : @Type @ArgTail
 
+statement
+declare
+define
+
 <var | const> <var_name> [: <type>] [= expr];
 
 fn <fn_name>(<arg_name> : <type>[, ...]) -> void {
 ....
 return ;
 }
+
+<fn_name>();
 
 defer ?  __deinit__ ?
 

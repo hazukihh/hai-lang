@@ -36,6 +36,7 @@ constexpr const char* SlComment = "//";
   XX(Minus       ,"-"),\
   XX(Star        ,"*"),\
   XX(Slash       ,"/"),\
+  XX(Mod         ,"%"),\
   XX(LParen      ,"("),\
   XX(RParen      ,")"),\
   XX(Assign      ,"="),\
@@ -54,9 +55,13 @@ constexpr const char* SlComment = "//";
   XX(Semi        ,";"),\
   XX(LessThan    ,"<"),\
   XX(GreaterThan ,">"),\
-  XX(SlQuota     ,"'"),\
-  XX(DbQuota     ,"\""),\
-  XX(sharp       ,"#")
+  XX(Sharp       ,"#"),\
+  XX(Question    ,"?"),\
+  XX(Dollar      ,"$")
+
+// TODO: maybe operators don't need '\'' and '\"'
+// XX(SlQuota     ,"'"),\
+// XX(DbQuota     ,"\"")
 
 // two-char运算符
 #define PUNCT_2CHAR_OPS_EXPAND(XX)\
@@ -67,9 +72,10 @@ constexpr const char* SlComment = "//";
   XX(And         ,"&&"),\
   XX(Or          ,"||"),\
   XX(LShift      ,"<<"),\
-  XX(RShift      ,">>")
+  XX(RShift      ,">>"),\
+  XX(RArrow      ,"->")
 
-// TODO: README: must define 2CHAR_OPS first，because the match now is use the 'for'
+// Tip: README: must define 2CHAR_OPS first，because the match now is use the 'for' ("Lexer::get_token() for punct_str")
 // XX(Name,Str)
 #define PUNCT_EXPAND(X_MACRO)\
   PUNCT_2CHAR_OPS_EXPAND(X_MACRO),\
@@ -90,17 +96,19 @@ enum ETokenType
   ETK_Identifier,
   ETK_IntLit,
   ETK_FlLit,
+  ETK_CharLit,
   ETK_StrLit,
 
   ETK_KEYWORD_START,
-  __etk_keyword_start = ETK_KEYWORD_START - 1,
+  _etk_keyword_start = ETK_KEYWORD_START - 1,
   KEYWORD_EXPAND(KEYWORD_ENUM_X),
   ETK_KEYWORD_END,
 
   ETK_PUNCT_START = ETK_KEYWORD_END,
-  __etk_punct_start = ETK_PUNCT_START - 1,
+  _etk_punct_start = ETK_PUNCT_START - 1,
   PUNCT_EXPAND(PUNCT_ENUM_X),
-  ETK_PUNCT_END
+  ETK_PUNCT_END,
+  ETK_COUNT = ETK_PUNCT_END
 };
 
 #undef KEYWORD_ENUM_X
@@ -118,10 +126,13 @@ inline const char* kETokenTypeName[] = {
   /*[ETK_Identifier] =*/ "ETK_Identifier",
   /*[ETK_IntLit] =*/ "ETK_IntLit",
   /*[ETK_FlLit] =*/ "ETK_FlLit",
+  /*[ETK_CharLit]*/ "ETK_CharLit",
   /*[ETK_StrLit] =*/ "ETK_StrLit",
   KEYWORD_EXPAND(ETOKEN_KEYWORD_NAME),
   PUNCT_EXPAND(ETOKEN_PUNCT_NAME)
 };
+
+static_assert(ETK_COUNT == sizeof(kETokenTypeName) / sizeof(const char*));
 
 #undef STRINGFY
 #undef ETOKEN_KEYWORD_NAME
@@ -134,12 +145,15 @@ inline const char* kETokenTypeName[] = {
 inline const char* kEStr_Keywords[] = {
   KEYWORD_EXPAND(KEYWORD_ARR_X)
 };
+static_assert(ETK_KEYWORD_END - ETK_KEYWORD_START == sizeof(kEStr_Keywords)/sizeof(const char*));
 #undef KEYWORD_ARR_X
+
 
 #define PUNCT_ARR_X(Name,Str) Str
 inline const char* kEStr_Puncts[] = {
   PUNCT_EXPAND(PUNCT_ARR_X)
 };
+static_assert(ETK_PUNCT_END - ETK_PUNCT_START == sizeof(kEStr_Puncts)/sizeof(const char*));
 #undef PUNCT_ARR_X
 
 inline const char* EStrKeyword(ETokenType type) {
@@ -198,7 +212,7 @@ inline bool IsSymbol(char ch)
 /**
  * @note the value of identifier,literals  is stored by the string_view of input_src
  */
-
+// TODO: Optimize the size of struct Token, more smaller. Clang: uint32: FILE_ID + Loca
 struct Token
 {
   ETokenType type = ETK_None;
@@ -208,6 +222,7 @@ struct Token
   uint32_t line = 0;
   uint32_t column = 0;
 
+  // Identifier,IntLit,FlLit,StrLit will return .text, others return type_tag_str
   [[nodiscard]] StringView to_str() const
   {
     switch (type)
@@ -216,9 +231,10 @@ struct Token
       case ETK_EOF: return "<EOF>";
       case ETK_Whitespace: return "<WhiterSpace>";
       case ETK_Comment: return "<Comment>";
-      case ETK_Identifier:
-      case ETK_IntLit:
-      case ETK_FlLit:
+      case ETK_Identifier: // fallthrough
+      case ETK_IntLit:     // fallthrough
+      case ETK_FlLit:      // fallthrough
+      case ETK_CharLit:    // fallthrough
       case ETK_StrLit:
         return text;
       default: break;
@@ -231,9 +247,37 @@ struct Token
     {
       return EStrPunct(type);
     }
+    assert(false);
     return "<Unknown>";
   }
 };
+
+[[nodiscard]] inline StringView get_type_tag_str(ETokenType type)
+{
+  switch (type)
+  {
+  case ETK_None: return "<Unknown>";
+  case ETK_EOF: return "<EOF>";
+  case ETK_Whitespace: return "<WhiterSpace>";
+  case ETK_Comment: return "<Comment>";
+  case ETK_Identifier: return "<Identifier>";
+  case ETK_IntLit: return "<IntLit>";
+  case ETK_FlLit: return "<FlLit>";
+  case ETK_CharLit: return "<CharLit>";
+  case ETK_StrLit: return "<StrLit>";
+  default: break;
+  }
+  if (ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END)
+  {
+    return EStrKeyword(type);
+  }
+  if (ETK_PUNCT_START <= type && type < ETK_PUNCT_END)
+  {
+    return EStrPunct(type);
+  }
+  assert(false);
+  return "<Unknown>";
+}
 
 
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "lexer.h"
 
@@ -7,10 +7,6 @@
 #include <memory>
 
 
-inline void error(const Token& t,StringView msg) {
-  LOG_ERROR("at line{}({}): {}, {}",t.line,t.column,t.to_str(),msg);
-  exit(1);
-}
 
 // TODO: Arena
 #if defined(DEBUG) || defined(_DEBUG)
@@ -35,7 +31,15 @@ struct AstNode {
   Ptr right = nullptr;
 
 #if defined(DEBUG) || defined(_DEBUG)
-  G_OPERATOR_NEW_WATCHER
+  // G_OPERATOR_NEW_WATCHER
+  void* operator new(size_t size){\
+    g_allocted_size += size;\
+    return ::operator new(size);\
+  }\
+  void operator delete(void* ptr,size_t size) {\
+    g_allocted_size -= size;\
+    return ::operator delete(ptr);\
+  }
 #endif
 
   void print(std::string (*get_value)(const Token& t),int depth = 0) const
@@ -62,7 +66,46 @@ struct AstNode {
   }
 };
 
+/*
+0  unary-lparen (
+10	= 以及 += -= 等复合赋值，右结合
+20	||
+30	&&
+40	|
+50	^
+60	&
+70	==， !=
+80	<， >， <=， >=
+90	<<，>>
+term100	 +，-
+factor110	 *， /， %
+unary120	一元前缀（最高）	! ~ + -
+                      *（解引用）
+                      &（取地址）
+postfix:
+130		.（点）， ->（箭头）	.（成员访问）
+140		()， []
+150 primary
+*/
 
+enum EPrecedence
+{
+  PREC_ASSIGNS     =10,  // =,+=,-=,...
+  PREC_OR          =20,  // ||
+  PREC_AND         =30,  // &&
+  PREC_BITOR       =40,  // |
+  PREC_BITXOR      =50,  // ^
+  PREC_BITXAND     =60,  // &
+  PREC_EQUALITY    =70,  // == !=
+  PREC_COMPARISON  =80,  // < > <= >=
+  PREC_SHIFT       =90,  // <<,>>
+  PREC_TERM        =100, // + -
+  PREC_FACTOR      =110, // * / %
+  PREC_UNARY       =120, // ! - ~ +
+  PREC_POST        =130, // . -> , () []
+  PREC_CALL        =140,
+  PREC_PRIMARY     =150
+};
 
 
 
@@ -95,16 +138,38 @@ inline const Rule& GetRules(ETokenType index)
 {
   static std::unordered_map<int,Rule> kRules = {
     {ETK_None,{}},
-    {ETK_Identifier,{prefix_number,nullptr,100}},
-    {ETK_IntLit ,{prefix_number,nullptr,100}},
-    // Term
-    {ETK_Plus  ,  {nullptr,infix_binary,60}},
-    {ETK_Minus  , {prefix_minus,infix_binary,60}},
-    //Factor
-    {ETK_Star  , {nullptr,infix_binary,70}},
-    {ETK_Slash  , {nullptr,infix_binary,70}},
     {ETK_LParen ,{prefix_lparen,nullptr,0}},
     {ETK_Assign ,{nullptr,infix_assign,10,1}},
+    {ETK_Or,{nullptr,infix_binary,20}},
+    {ETK_And,{nullptr,infix_binary,30}},
+    {ETK_BitOr,{nullptr,infix_binary,40}},
+    {ETK_BitXor,{nullptr,infix_binary,50}},
+    {ETK_BitNot,{nullptr,infix_binary,60}},
+    // Equality
+    {ETK_Eq,{nullptr,infix_binary,70}},
+    {ETK_NotEq,{nullptr,infix_binary,70}},
+    // Comparison
+    {ETK_LessThan,{nullptr,infix_binary,80}},
+    {ETK_GreaterThan,{nullptr,infix_binary,80}},
+    {ETK_LessEq,{nullptr,infix_binary,80}},
+    {ETK_GreaterEq,{nullptr,infix_binary,80}},
+
+    {ETK_LShift,{nullptr,infix_binary,90}},
+    {ETK_RShift,{nullptr,infix_binary,90}},
+    // Term
+    {ETK_Plus  ,  {nullptr,infix_binary,100}},
+    {ETK_Minus  , {prefix_minus,infix_binary,100}},
+    //Factor
+    {ETK_Star  , {nullptr,infix_binary,110}},
+    {ETK_Slash  , {nullptr,infix_binary,110}},
+    // unary '-': 120
+    // call/postfix : 130 140
+    // primary ?
+    {ETK_Identifier,{prefix_number,nullptr,150}},
+    {ETK_IntLit ,{prefix_number,nullptr,150}},
+    {ETK_FlLit ,{prefix_number,nullptr,150}},
+    {ETK_CharLit ,{prefix_number,nullptr,150}},
+    {ETK_StrLit ,{prefix_number,nullptr,150}}
   };
 
   const auto iter = kRules.find(index);
@@ -115,35 +180,13 @@ inline const Rule& GetRules(ETokenType index)
 
 
 
-
-
-/*
-enum class EPrecedence
-{
-  PREC_ASSIGNMENT,  // =
-  PREC_OR,          // or
-  PREC_AND,         // and
-  PREC_EQUALITY,    // == !=
-  PREC_COMPARISON,  // < > <= >=
-  PREC_TERM,        // + -
-  PREC_FACTOR,      // * /
-  PREC_UNARY,       // ! -
-  PREC_CALL,        // . ()
-  PREC_PRIMARY
-};
-*/
-
-
-
-
-
 static AstNode::Ptr prefix_number(Lexer *, AstNode::Ptr node) {
   return node;
 }
 
 static AstNode::Ptr prefix_minus(Lexer *lexer, AstNode::Ptr node)
 {
-  auto operand = parse_expression(lexer, 150);
+  auto operand = parse_expression(lexer, PREC_UNARY);
   node->right = std::move(operand);
   return node;
 }
@@ -151,10 +194,9 @@ static AstNode::Ptr prefix_minus(Lexer *lexer, AstNode::Ptr node)
 static AstNode::Ptr prefix_lparen(Lexer *lexer, AstNode::Ptr node)
 {
   auto result = parse_expression(lexer, 0);
-  const Token t = lexer->next();
-  if (t.type != ETK_RParen)
+
+  if (! lexer->skip(ETK_RParen))
   {
-    error(t, "lack ')'" );
     return nullptr;
   }
 
@@ -188,7 +230,7 @@ AstNode::Ptr parse_expression(Lexer *lexer, int rbp)
 
   const PrefixFn prefix_fn = GetRules(left->atom.type).prefix;
   if (!prefix_fn) {
-    error(left->atom,"expect expression");
+    error_at(left->atom,"expect expression");
     return nullptr;
   }
   left = prefix_fn(lexer, std::move(left));
@@ -200,10 +242,11 @@ AstNode::Ptr parse_expression(Lexer *lexer, int rbp)
       break;
     }
 
-    lexer->next(); // consume
+    lexer->consume();
     const InfixFn infix_fn = rule.infix;
     if (!infix_fn) {
-      error(op->atom,"");
+      // TODO: what msg is better?
+      error_at(op->atom,"expect operator");
       break;
     }
 
@@ -211,5 +254,12 @@ AstNode::Ptr parse_expression(Lexer *lexer, int rbp)
     left = infix_fn(lexer, std::move(op));
   }
 
+  return left;
+}
+
+inline AstNode::Ptr test_parse_statement(Lexer *lexer)
+{
+  auto left = parse_expression(lexer,0);
+  lexer->skip(ETK_Semi);
   return left;
 }

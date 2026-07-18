@@ -8,12 +8,17 @@
 
 
 /* changelog
- *
-TODO: more details for error => token.line .column, lexer.row..
+
 TODO: support unary-plus or not ?
 TODO: support the error recover by Panic Mode（恐慌模式）
 
-
+version-0.1.2:
+  more details for error => add Token.line Token.column, Lexer.base Lexer.row
+  Lexer: **basic** support StrLit and CharLit, remove '\'','"' from Puncts (Operators)
+    TODO: support Escape Character-'\...'
+    TODO: how to deal with the lack of Right-'"'-'\'' ?
+    TODO: if the char_len > 1 in CharLit ?
+  more Precedence(binding power) in kRules
 
 version-0.1.1:
   FIX : after parse_*,directly delete root(: AstNode*),will leak the memory

@@ -23,6 +23,18 @@ int main(int argc,char** argv)
   }
 }
 
+void detect_memory_leak(AstNode::Ptr root)
+{
+#if defined(DEBUG) || defined(_DEBUG)
+  LOG_INFO("total alloc {} bytes",g_allocted_size);
+  root.reset();
+  if(g_allocted_size != 0)
+  {
+    LOG_INFO("allocator leak {} bytes",g_allocted_size);
+  }
+#endif
+}
+
 
 int internal_main(int argc,char** argv)
 {
@@ -69,7 +81,8 @@ int internal_main(int argc,char** argv)
 
 
   Lexer lexer{
-    .input_ = input
+    .input_ = input,
+    .base_ = input.data()
   };
 
   {
@@ -81,25 +94,25 @@ int internal_main(int argc,char** argv)
       }
       LOG_INFO("{} \t\t {}",token.to_str(),kETokenTypeName[token.type]);
     }
+    LOG_INFO("====Lexer End====");
   }
 
-  auto root = parse_expression(&lexer,0);
 
 
+  // auto root = parse_expression(&lexer,0);
+  // detect_memory_leak(std::move(root));
 
-  root->print([](const Token& t)
+  while (lexer.peek().type != ETK_EOF)
   {
-    return std::string(t.to_str());
-  });
-
-#if defined(DEBUG) || defined(_DEBUG)
-  LOG_INFO("total alloc {} bytes",g_allocted_size);
-  root.release();
-  if(g_allocted_size != 0)
-  {
-    LOG_INFO("allocator leak {} bytes",g_allocted_size);
+    auto root = test_parse_statement(&lexer);
+    root->print([](const Token& t)
+    {
+      return std::string(t.to_str());
+    });
+    detect_memory_leak(std::move(root));
   }
-#endif
+  lexer.skip(ETK_EOF);
+
 
   return 0;
 }

@@ -10,6 +10,29 @@
 #include <cstring> // memcmp
 using StringView = ::std::string_view;
 
+// FIX: when use isspace, if c not int -1~0~255 ,(utf-8) will error
+inline bool is_space(int c)
+{
+  if (c == -1) return false;
+  return isspace(static_cast<uint8_t>(c));
+}
+inline bool is_digit(int c)
+{
+  if (c == -1) return false;
+  return isdigit(static_cast<uint8_t>(c));
+}
+inline bool is_alpha(int c)
+{
+  if (c == -1) return false;
+  return isalpha(static_cast<uint8_t>(c));
+}
+inline bool is_alnum(int c)
+{
+  if (c == -1) return false;
+  return isalnum(static_cast<uint8_t>(c));
+}
+
+
 
 [[nodiscard]] ::std::string sv_to_str(StringView sv);
 /**
@@ -26,11 +49,14 @@ using StringView = ::std::string_view;
 [[nodiscard]] StringView sv_slice(StringView sv, size_t start, size_t end);
 [[nodiscard]] // return sv[statr,sv.size())
 [[nodiscard]] StringView sv_slice(StringView sv, size_t start);
+template<typename... Args>
+void sv_cat_to(std::string& buffer,StringView sv1,StringView sv2,Args&&... args);
 
+template<typename... Args>
+[[nodiscard]] std::string sv_cat(StringView sv1,StringView sv2,Args&&... args);
 
 #ifdef STRING_VIEW_IMPLEMENTATION
 
-#include <cctype> // for std::isspace
 
 
 ::std::string sv_to_str(StringView sv) {
@@ -42,7 +68,7 @@ StringView sv_trim_left(StringView sv) {
   size_t i = 0;
   size_t size = sv.size();
   const char* data = sv.data();
-  while (i < size && isspace(data[i])) {
+  while (i < size && is_space(data[i])) {
     i += 1;
   }
   return StringView{data + i, size - i};
@@ -51,7 +77,7 @@ StringView sv_trim_right(StringView sv) {
   size_t i = 0;
   size_t size = sv.size();
   const char* data = sv.data();
-  while (i < size && isspace(data[size - 1 - i])) {
+  while (i < size && is_space(data[size - 1 - i])) {
     i += 1;
   }
 
@@ -134,6 +160,38 @@ StringView sv_slice(StringView sv, size_t start, size_t end) {
 
 StringView sv_slice(StringView sv, size_t start) {
   return sv_slice(sv, start, sv.size());
+}
+
+template<typename... Args>
+void sv_cat_to(std::string& buffer,StringView sv1,StringView sv2,Args&&... args) {
+
+  constexpr size_t arr_size = sizeof...(Args) + 2;
+  if constexpr(arr_size == 2) {
+    buffer.clear();
+    buffer.append(sv1.data(), sv1.size());
+    buffer.append(sv2.data(), sv2.size());
+    return;
+  }
+  StringView sv_arr[] = {sv1,sv2,args...};
+
+  size_t new_size = 0;
+  for(size_t i = 0; i < arr_size; ++i) {
+    new_size += sv_arr[i].size();
+  }
+
+  buffer.resize(new_size);
+  size_t pos = 0;
+  for(size_t i = 0; i < arr_size; ++i) {
+    memcpy(&buffer[pos], sv_arr[i].data(), sv_arr[i].size());
+    pos += sv_arr[i].size();
+  }
+}
+
+template<typename... Args>
+std::string sv_cat(StringView sv1,StringView sv2,Args&&... args) {
+  std::string result;
+  sv_cat_to(result,sv1,sv2,args...);
+  return result;
 }
 
 #endif // STRING_VIEW_IMPLEMENTATION

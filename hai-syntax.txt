@@ -1,22 +1,35 @@
-@BaseType = s8 | s16 | s32 | s64 
+@BaseType = s8 | s16 | s32 | s64
 	| u8 | u16 | u32 | u64
 	| f32 | f64 | void | bool | string
-@Type =  @BaseType 
-	| * @Type 
+@Type =  @BaseType
+	| * @Type
 	| const @Type
-@TypeTuple = (@Type , @Type  @TypeTupleTail) 
-@TypeTupleTail = NUL 
+@TypeTuple = (@Type , @Type  @TypeTupleTail)
+@TypeTupleTail = NUL
 	| , Type TypeTupleTail
 
 @ArgList = (@Arg)
-@Arg = NUL 
+@Arg = NUL
 	| string : @Type @ArgTail
-@ArgTail = NUL 
+@ArgTail = NUL
 	| , string : @Type @ArgTail
 
 statement
 declare
 define
+
+primary ::= Identifier | IntLit | FlLit | StrLit
+unary ::= + - ! etc. (special "()" )
+binary ::= + - * / = etc.
+expr ::= unary expr | ( expr )
+         | expr binary expr | primary
+
+program ::= stmt* EOF
+stmt ::= ret_stmt     =>  "return" expr? ";"
+        | block_stmt  =>  "{" stmt* "}"
+        | if_stmt     =>  "if" expr block_stmt ["else" block_stmt | "else" if_stmt]
+        | expr_stmt   =>  expr? ";"
+
 
 <var | const> <var_name> [: <type>] [= expr];
 
@@ -32,4 +45,4 @@ defer ?  __deinit__ ?
 pointer : "&a" or "*a" ?
   "."  / "->" ?
   "*p" / "p.*" ?
-  
+

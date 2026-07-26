@@ -2,11 +2,11 @@
 #define TOKENS_DEF_H
 #pragma once
 
-#include <cstddef> // size_t
-#include <deque>
+#include <cassert>
+#include <unordered_map>
 #include <unordered_set>
 
-#include "version.h"
+#include "common/StringView.h"
 
 
 // Single Comment str
@@ -24,7 +24,8 @@ constexpr const char* SlComment = "//";
   XX(false),XX(true),\
   XX(struct),XX(var),\
   XX(const), XX(fn),\
-  XX(if),XX(while),\
+  XX(if),XX(else),\
+  XX(while),\
   XX(break),XX(continue),\
   XX(return)
 
@@ -87,9 +88,11 @@ constexpr const char* SlComment = "//";
 #define KEYWORD_ENUM_X(Name) ETK_##Name
 #define PUNCT_ENUM_X(Name,Str) ETK_##Name
 
+// TODO: which solution better ?: 使用 ascii(0-127)值 表示 单字符TOKEN,其他类型TOKEN从128开始??
 enum ETokenType
 {
   ETK_None,
+  ETK_Error = ETK_None,
   ETK_EOF,
   ETK_Whitespace,
   ETK_Comment,
@@ -201,12 +204,12 @@ inline ETokenType KeywordId(std::string_view sv)
 
 inline bool IsSymbolStart(char ch)
 {
-  return isalpha(ch) || ch == '_';
+  return is_alpha(ch) || ch == '_';
 }
 
 inline bool IsSymbol(char ch)
 {
-  return isalnum(ch) || ch == '_';
+  return is_alnum(ch) || ch == '_';
 }
 
 /**

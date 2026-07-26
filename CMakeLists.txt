@@ -16,10 +16,14 @@ target_sources(haic PRIVATE
     src/common/Log.cpp
     src/common/StringView.cpp
 
+    src/arena.h
     src/version.h
     src/tokens_def.h
     src/lexer.h
-     src/syntax_parser.h
+    src/expr.h
+    src/expr.cpp
+    src/syntax_parser.h
+    src/syntax_parser.cpp
 
 #    examples/lexer_path_arg.cpp
     examples/parser.cpp

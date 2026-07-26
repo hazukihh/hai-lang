@@ -1,4 +1,9 @@
-﻿// test - ( ,+ - * / =
+//// test expr_stmt
+
+/// test utf-8
+//中文sss牛牛 // error
+
+// test - ( ,+ - * / =
 
 x =
  y =  (-1 + 10) - 5 * 4 / 2 + -- 7;
@@ -23,3 +28,18 @@ x = 1 && 0  && 777|| 2 && 4 || 1 || 2 || 0;
 x = "1234  ";
 //y = "1234 '; //error
 //z='; // error
+
+
+
+//// test null-expr_stmt
+;;
+
+//// test ret_stmt
+return (1 +2) * "1234" / '\0';
+return;
+
+
+//// test block_stmt;
+{{
+return x - y;
+}}

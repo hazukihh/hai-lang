@@ -4,7 +4,8 @@
 #include "common/Defer.hpp"
 
 #include "lexer.h"
-#include "syntax_parser.h"
+#include "expr.h"
+
 
 int internal_main(int argc,char** argv);
 int main(int argc,char** argv)
@@ -23,17 +24,21 @@ int main(int argc,char** argv)
   }
 }
 
-void detect_memory_leak(AstNode::Ptr root)
+Expr::Ptr test_parse_expr_stmt(Lexer* lexer)
 {
-#if defined(DEBUG) || defined(_DEBUG)
-  LOG_INFO("total alloc {} bytes",g_allocted_size);
-  root.reset();
-  if(g_allocted_size != 0)
+  if (lexer->peek().type == ETK_Semi)
   {
-    LOG_INFO("allocator leak {} bytes",g_allocted_size);
+    lexer->consume();
+    return nullptr;
   }
-#endif
+
+  auto left = parse_expression(lexer,0);
+  lexer->skip(ETK_Semi);
+
+
+  return left;
 }
+
 
 
 int internal_main(int argc,char** argv)
@@ -80,10 +85,8 @@ int internal_main(int argc,char** argv)
   }
 
 
-  Lexer lexer{
-    .input_ = input,
-    .base_ = input.data()
-  };
+  Lexer lexer;
+  lexer.init(input);
 
   {
     Lexer lexer_copy = lexer;
@@ -99,20 +102,29 @@ int internal_main(int argc,char** argv)
 
 
 
-  // auto root = parse_expression(&lexer,0);
-  // detect_memory_leak(std::move(root));
-
+  // parse_program
   while (lexer.peek().type != ETK_EOF)
   {
-    auto root = test_parse_statement(&lexer);
+    auto root = test_parse_expr_stmt(&lexer);
+    if (!root) continue;
+
     root->print([](const Token& t)
     {
       return std::string(t.to_str());
     });
-    detect_memory_leak(std::move(root));
+    LOG_DEBUG("test leak:");
+#if EXPR_VERSION == 1
+      G_WATCHER_AOP(expr,
+        root.reset();
+      );
+#else
+      LOG_INFO("g_arena total alloc {} bytes",g_arena.size_);
+      g_arena.rewind(0);
+#endif
+    LOG_DEBUG("===========");
+
   }
   lexer.skip(ETK_EOF);
-
 
   return 0;
 }

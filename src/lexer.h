@@ -1,11 +1,8 @@
 #pragma once
 #include "common/Log.h"
-#include "common/Defer.hpp"
 #include "common/StringView.h"
 
 #include "tokens_def.h"
-
-#include <deque>
 
 
 inline void error_at(const Token& t,StringView msg) {
@@ -33,146 +30,25 @@ inline void error_at(const Token& t,ETokenType expected) {
 
 struct Lexer
 {
+  // TODO: lexer.src_ ?
+#if defined(DEBUG) || defined(_DEBUG)
+  std::string_view src_;
+#endif
   std::string_view input_;
 
   // base of row
   const char* base_;
   uint32_t row_ = 1;
 
-
-  /*
-  void consume(char ch)
+  bool init(std::string_view src)
   {
-    Token last;
-    if (!tokens.empty()) last = tokens.back();
-
-    switch(ch) {
-    case ' ': case '\t': case '\n': {
-      // tokens.push_back({EToken_Punct});
-      break;
-    }
-   case '+': {
-    tokens.push_back({.type = EToken_Punct, .punct = EPunct_Add});
-    break;
-    }
-    case '-': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Subtract});
-      break;
-    }
-    case '*': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Multiply});
-      break;
-    }
-    case '/': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Divide});
-      break;
-    }
-    case '(': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_LParen});
-      break;
-    }
-    case ')': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_RParen});
-      break;
-    }
-    case '{': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_LBrace});
-      break;
-    }
-    case '}': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_RBrace});
-      break;
-    }
-    case '[': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_LBracket});
-      break;
-    }
-    case ']': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_RBracket});
-      break;
-    }
-    case '!': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Not});
-      break;
-    }
-    case '&': {
-      if (last.type != EToken_None && last.type == EToken_Punct && last.punct == EPunct_BitAnd)
-      {
-        tokens.back().punct = EPunct_And;
-      }
-      else
-      {
-        tokens.push_back({.type = EToken_Punct, .punct = EPunct_BitAnd});
-      }
-      break;
-    }
-    case '|': {
-      if (last.type != EToken_None && last.type == EToken_Punct && last.punct == EPunct_BitOr)
-      {
-        tokens.back().punct = EPunct_Or;
-      }
-      else
-      {
-        tokens.push_back({.type = EToken_Punct, .punct = EPunct_BitOr});
-      }
-      break;
-    }
-    case '^': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_BitXor});
-      break;
-    }
-    case '~': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_BitNot});
-      break;
-    }
-    case ',': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Comma});
-      break;
-    }
-    case '.': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Dot});
-      break;
-    }
-    case ':': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Colon});
-      break;
-    }
-    case ';': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_Semicolon});
-      break;
-    }
-    case '=': {
-      if (last.type != EToken_None && last.type == EToken_Punct)
-      {
-        EPunct new_enum;
-        switch (last.punct)
-        {
-        case EPunct_Assign:     new_enum = EPunct_Eq;break;
-        case EPunct_Not:     new_enum = EPunct_NotEq;break;
-        case EPunct_LessThan:   new_enum = EPunct_LessEq;break;
-        case EPunct_GreaterThan:   new_enum = EPunct_GreaterEq;break;
-          default: new_enum = last.punct;
-        }
-        tokens.back().punct = new_enum;
-      }
-      else
-      {
-        tokens.push_back({.type = EToken_Punct, .punct = EPunct_Assign});
-      }
-      break;
-    }
-    case '<': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_LessThan});
-      break;
-    }
-    case '>': {
-      tokens.push_back({.type = EToken_Punct, .punct = EPunct_GreaterThan});
-      break;
-    }
-    default: break;
-    }
+#if defined(DEBUG) || defined(_DEBUG)
+    src_ = src;
+#endif
+    input_ = src;
+    base_ = input_.data();
+    return true;
   }
-  */
 
   [[nodiscard]]
   Token get_token()
@@ -185,7 +61,7 @@ struct Lexer
         size_t i = 0;
         size_t size = input_.size();
         const char* data = input_.data();
-        while (i < size && isspace(data[i])) {
+        while (i < size && is_space(data[i])) {
           if (data[i] == '\n') {
             row_ += 1;
             base_ = data + i + 1;
@@ -253,9 +129,9 @@ struct Lexer
     // Int literal
     // TODO: hex: 0X/0x...; Oct 0O/0o...
     // TODO: float literal
-    if(isdigit(input_[0])) {
+    if(is_digit(input_[0])) {
       size_t pos = 0;
-      while(pos < input_.size() && isdigit(input_[pos])) {
+      while(pos < input_.size() && is_digit(input_[pos])) {
         ++pos;
       }
       StringView literal_sv = {input_.data(),pos};
@@ -392,19 +268,43 @@ struct Lexer
   [[nodiscard]]
   Token peek() {
     Lexer lexer_copy = *this;
-    return lexer_copy.get_token();
+    auto t = lexer_copy.get_token();
+#if defined(DEBUG) || defined(_DEBUG)
+    assert(src_.data() <= t.text.data()
+        && t.text.data() <= src_.data() + src_.size()
+        && "t.text.data() out of range of string_view src");
+#endif
+    return t;
   }
 
   [[nodiscard]]
   Token next() {
-    return get_token();
+    auto t = get_token();
+#if defined(DEBUG) || defined(_DEBUG)
+    assert(src_.data() <= t.text.data()
+        && t.text.data() <= src_.data() + src_.size()
+        && "t.text.data() out of range of string_view src");
+#endif
+    return t;
   }
 
   void consume() {
+#if defined(DEBUG) || defined(_DEBUG)
+    auto t = get_token();
+    assert(src_.data() <= t.text.data()
+        && t.text.data() <= src_.data() + src_.size()
+        && "t.text.data() out of range of string_view src");
+#else
     (void)get_token();
+#endif
   }
   bool skip(ETokenType expected) {
     Token  t = get_token();
+#if defined(DEBUG) || defined(_DEBUG)
+    assert(src_.data() <= t.text.data()
+        && t.text.data() <= src_.data() + src_.size()
+        && "t.text.data() out of range of string_view src");
+#endif
     if (t.type != expected)
     {
       error_at(t,expected);
@@ -414,6 +314,11 @@ struct Lexer
   }
   Token expect(ETokenType expected) {
     const Token  t = get_token();
+#if defined(DEBUG) || defined(_DEBUG)
+    assert(src_.data() <= t.text.data()
+        && t.text.data() <= src_.data() + src_.size()
+        && "t.text.data() out of range of string_view src");
+#endif
     if (t.type != expected)
     {
       error_at(t,expected);

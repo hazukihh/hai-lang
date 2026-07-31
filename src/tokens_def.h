@@ -284,28 +284,5 @@ struct Token
 
 
 
-/*
-inline std::deque<std::string> StrTable;
-// TODO: flat hash map
-inline std::unordered_map<std::string_view,size_t> StrTableMap;
-inline size_t StrTable_Add(std::string_view sv)
-{
-  auto iter = StrTableMap.find(sv);
-  if (iter == StrTableMap.end())
-  {
-    StrTable.emplace_back(sv);
-    StrTableMap[StrTable.back()] = StrTable.size() - 1;
-    return StrTable.size() - 1;
-  }
-
-  return iter->second;
-}
-inline std::string_view StrTable_Get(const size_t index)
-{
-  assert(index < StrTable.size() && "out of range of StrTable");
-  return StrTable[index];
-}
-*/
-
 
 #endif // TOKENS_DEF_H

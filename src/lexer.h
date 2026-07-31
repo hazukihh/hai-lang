@@ -4,6 +4,8 @@
 
 #include "tokens_def.h"
 
+// TODO: Option for Strict Mode
+constexpr auto FLAG_STRICT_MODE = true;
 
 inline void error_at(const Token& t,StringView msg) {
   fmt::memory_buffer buf;
@@ -18,7 +20,7 @@ inline void error_at(const Token& t,StringView msg) {
     buf.push_back(' ');
   }
   fmt::format_to(std::back_inserter(buf),
-    "^ got {}, {}",get_type_tag_str(t.type),msg);
+    "^ got \"{}\", {}",get_type_tag_str(t.type),msg);
 
   LOG_ERROR(fmt::to_string(buf));
   exit(1);
@@ -30,15 +32,17 @@ inline void error_at(const Token& t,ETokenType expected) {
 
 struct Lexer
 {
-  // TODO: lexer.src_ ?
-#if defined(DEBUG) || defined(_DEBUG)
-  std::string_view src_;
-#endif
+
   std::string_view input_;
 
   // base of row
   const char* base_;
   uint32_t row_ = 1;
+
+  // TODO: lexer.src_ : debug_assert Token.text.data() is in the range of src_
+#if defined(DEBUG) || defined(_DEBUG)
+  std::string_view src_;
+#endif
 
   bool init(std::string_view src)
   {
@@ -145,7 +149,10 @@ struct Lexer
       };
     }
 
-    // TODO: how to deal with Conflict in Punct '\"' '\'' => remove them from puncts
+    /**
+     * @note how to deal with Conflict in Punct '\"' '\''
+     *    probably not has operator for '\"' '\'' , So just remove them from puncts
+     */
     // String literal "..."
     if (input_[0] == '"')
     {
@@ -168,13 +175,14 @@ struct Lexer
         sv = StringView{input_.data(),pos};
         input_ = sv_slice(input_,pos);
 
-        // TODO: Option for Strict Mode
-        error_at(Token{
-          .type = ETK_StrLit,
-          .text = sv,
-          .line = row_,
-          .column = static_cast<uint32_t>(sv.data() - base_)
-        },"StringLiteral lack Right-'\"'(Strict Mode)");
+        if constexpr (FLAG_STRICT_MODE) {
+          error_at(Token{
+            .type = ETK_StrLit,
+            .text = sv,
+            .line = row_,
+            .column = static_cast<uint32_t>(sv.data() - base_)
+          },"StringLiteral lack Right-'\"'(Strict Mode)");
+        }
       }
       return Token{
         .type = ETK_StrLit,
@@ -193,7 +201,7 @@ struct Lexer
         ++pos;
       }
 
-      // TODO: Similar to StringLit. Should be error when the char len > 1 ? or delay ?
+
       StringView sv;
       if (pos < input_.size() && input_[pos] == '\'') {
         sv = StringView{input_.data(),pos+1};
@@ -203,13 +211,28 @@ struct Lexer
         sv = StringView{input_.data(),pos};
         input_ = sv_slice(input_,pos);
 
-        // TODO: Option for Strict Mode
-        error_at(Token{
-          .type = ETK_CharLit,
-          .text = sv,
-          .line = row_,
-          .column = static_cast<uint32_t>(sv.data() - base_)
-        },"CharLiteral lack Right-'\''(Strict Mode)");
+        if constexpr (FLAG_STRICT_MODE) {
+          error_at(Token{
+            .type = ETK_CharLit,
+            .text = sv,
+            .line = row_,
+            .column = static_cast<uint32_t>(sv.data() - base_)
+          },"CharLiteral lack Right-'\''(Strict Mode)");
+        }
+      }
+      // TODO: Similar to StringLit. Should be error when the char len > 1 ? or delay ?
+      if constexpr (FLAG_STRICT_MODE) {
+        if(sv.size()<3 ||
+          (sv[1]!='\\' && sv.size()!=3) ||
+          (sv[1]=='\\' && sv.size()!=4))
+        {
+          error_at(Token{
+            .type = ETK_CharLit,
+            .text = sv,
+            .line = row_,
+            .column = static_cast<uint32_t>(sv.data() - base_)
+          },"CharLiteral must be single char");
+        }
       }
       return Token{
         .type = ETK_CharLit,

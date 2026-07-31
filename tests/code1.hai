@@ -1,45 +1,84 @@
-//// test expr_stmt
+﻿/// #0 text lexer
 
-/// test utf-8
+/// ##0.1 test utf-8
 //中文sss牛牛 // error
 
-// test - ( ,+ - * / =
+/// ##0.2 test StrLit CharLit
+
+x = "1234  ";
+x = "";
+x = '\\';
+//x = ''; // error, char empty
+
+//x = '\\\'; // error, 2 char in charLit
+//y = "1234 '; //error
+//z='; // error
+
+/// ##0.3 test Keyword Identifier
+
+x = for + forword;
+
+
+/// #1 test expr_stmt
+
+
+/// ##1.1 test - ( ,+ - * / =
 
 x =
  y =  (-1 + 10) - 5 * 4 / 2 + -- 7;
 
-/// test LR-Paren match
 
-// (1)) // error
+/// ##1.2 test LR-Paren match
+
+// (1)) // error,lack '('
+
 //(
 //((1))
 //)
 
 
-/// test || &&
+/// ##1.3 test || &&
 
 x = 1 && 0  && 777|| 2 && 4 || 1 || 2 || 0;
 
+/// ##1.4 test | ^ &
+
+x = y ^ x & 1 | 2 ^ 3;
+
+/// ##1.5 test fn_call
+
+x = foo();
+x = foo(77 ^ 2 & 4, (1 +2) * "1234" ,y,y ^ x & 1 | 2 ^ 3);
+//x = foo(,77 ^ 2 & 4,z);   // error
+//x = foo(77 ^ 2 & 4, ,y); // error
+//x = foo(77 ^ 2 & 4,z,);   // error
 
 
+/// ##1.6 op-dot
 
-/// test StrLit CharLit
+x.a = 2;
+y = x.  text.foo(1,2,3);
+// y = x.(1+2); // error
 
-x = "1234  ";
-//y = "1234 '; //error
-//z='; // error
+/// ##1.7 op-arr
 
+x = arr[i];
+y = arr[0].z != '\0';
+fns[(-1 + 10) - 5 * 4 / 2 + -- 7](6);
+//x = arr[] // error
 
-
-//// test null-expr_stmt
+/// ##1.8 test null-expr_stmt
 ;;
 
-//// test ret_stmt
+
+
+
+/// #2 test ret_stmt
 return (1 +2) * "1234" / '\0';
 return;
 
 
-//// test block_stmt;
+/// #3 test block_stmt;
 {{
 return x - y;
 }}

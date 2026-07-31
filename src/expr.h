@@ -25,6 +25,13 @@ inline Arena g_arena {
 
 G_WATCHER(expr);
 
+// struct LiteralExpr;
+// struct UnaryOpExpr;
+// struct BinaryOpExpr;
+// struct CallExpr;
+// struct MemberExpr;
+// struct ArrSubExpr;
+
 struct Expr
 {
   // G_OPERATOR_NEW_WATCHER_BY(expr)
@@ -49,13 +56,46 @@ struct Expr
 
   Token atom {.type = ETokenType::ETK_None};
   // TODO: store by left+right or vec![] ? which better ?
+  // unary_op: right
+  // binary_op: left + right
   Ptr left = nullptr;
   Ptr right = nullptr;
+
+  // TODO: what is better for fn_call ?
+  // fn_call: fn_params_list
+  Ptr next = nullptr;
 
   void print(std::string (*get_value)(const Token& t),int depth = 0) const;
 };
 
 struct Lexer;
+// struct LiteralExpr
+// {
+//   union
+//   {
+//     uint64_t integer;
+//     double fl;
+//     uint8_t ch;
+//     uint8_t* str;
+//   };
+// };
+// struct UnaryOpExpr
+// {
+//   Expr::Ptr operand;
+// };
+// struct BinaryOpExpr
+// {
+//   Expr::Ptr left;
+//   Expr::Ptr right;
+// };
+//
+// struct CallExpr
+// {
+//   Expr::Ptr func;
+//   Expr::Ptr *args;
+//   uint32_t args_cnt;
+// };
+
 /**
  * @brief  Pratt parser for parsing expressions.
  *    primary ::= Identifier | IntLit | FlLit | StrLit
@@ -64,7 +104,7 @@ struct Lexer;
  *    expr ::= unary expr | ( expr )
  *           | expr binary expr | primary
  */
-Expr::Ptr parse_expression(Lexer *lexer, int rbp = 0);
+Expr::Ptr parse_expression(Lexer *lexer, uint8_t rbp = 0);
 
 
 #endif //HAILANG_EXPR_H

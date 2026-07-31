@@ -1,4 +1,4 @@
-@BaseType = s8 | s16 | s32 | s64
+﻿@BaseType = s8 | s16 | s32 | s64
 	| u8 | u16 | u32 | u64
 	| f32 | f64 | void | bool | string
 @Type =  @BaseType
@@ -45,4 +45,83 @@ defer ?  __deinit__ ?
 pointer : "&a" or "*a" ?
   "."  / "->" ?
   "*p" / "p.*" ?
+
+
+
+=======clang
+Stmt
+├── NullStmt, CompoundStmt, ReturnStmt, IfStmt, ForStmt, WhileStmt, …
+└── Expr  (表达式也是一种语句)
+    ├── BinaryOperator, UnaryOperator, …
+    ├── CallExpr, MemberExpr, ArraySubscriptExpr, …
+    ├── DeclRefExpr, IntegerLiteral, FloatingLiteral, StringLiteral, …
+    ├── CastExpr
+    │   ├── ImplicitCastExpr
+    │   └── ExplicitCastExpr (CStyleCastExpr, CXXFunctionalCastExpr, …)
+    ├── CXXOperatorCallExpr, CXXConstructExpr, CXXNewExpr, CXXDeleteExpr, …
+    └── ConditionalOperator, InitListExpr, ParenExpr, …
+Expr 本身是抽象类，继承自 Stmt，并添加了值类别、类型、依赖等信息。
+
+常量和字面量节点如 IntegerLiteral、CharacterLiteral 直接继承自 Expr。
+
+运算符节点：BinaryOperator、UnaryOperator 继承自 Expr，包含运算位置、操作数等。
+
+转换相关：CastExpr 是所有转换的基类，下有隐式转换 ImplicitCastExpr 和显式转换的各种形式（C 风格、C++ 风格等）。
+
+C++ 特有节点：如 CXXOperatorCallExpr（重载运算符调用）继承自 CallExpr（自身继承自 Expr）。
+
+
+Decl
+├── NamedDecl  (所有有名字的实体)
+│   ├── ValueDecl  (变量、函数、枚举常量等有值的实体)
+│   │   ├── VarDecl
+│   │   ├── FunctionDecl
+│   │   │   └── CXXMethodDecl, CXXConstructorDecl, CXXDestructorDecl, …
+│   │   ├── FieldDecl
+│   │   ├── IndirectFieldDecl
+│   │   ├── EnumConstantDecl
+│   │   └── ParmVarDecl  (函数参数)
+│   ├── TypeDecl  (类型声明)
+│   │   ├── TagDecl  (struct/union/enum/class)
+│   │   │   ├── EnumDecl
+│   │   │   └── RecordDecl
+│   │   │       └── CXXRecordDecl
+│   │   └── TypedefNameDecl
+│   │       ├── TypedefDecl
+│   │       └── TypeAliasDecl
+│   └── UsingDecl, NamespaceDecl, …
+└── 其他非命名声明: TranslationUnitDecl, FileScopeAsmDecl, …
+Decl 有多个子类，最重要的分支是 NamedDecl（任何有名称的实体）。
+
+ValueDecl 表示可以取值的东西：变量 (VarDecl)、函数 (FunctionDecl)、字段、枚举常量等。
+
+TypeDecl 表示类型定义：RecordDecl 涵盖 struct/union/class，C++ 专用类在 CXXRecordDecl 中扩展。
+
+FunctionDecl 下有 C++ 成员函数系列：CXXMethodDecl 是成员函数基类，再派生出构造/析构/转换函数等。
+
+
+Type (不可变的、引用计数的值对象)
+├── BuiltinType        (int, float, void, …)
+├── PointerType        (T*)
+├── ReferenceType      (T&)
+├── ArrayType          (T[N] / T[])
+├── FunctionType       (返回类型 + 参数类型)
+│   └── FunctionProtoType  (带原型信息的函数类型)
+├── RecordType         (struct/union/class)
+├── EnumType
+├── TypedefType
+└── 其他: ComplexType, VectorType, TemplateSpecializationType, …
+
+======IR
+based on Stack
+  iload/push a
+  iload/push b
+  iadd
+
+based on Register(unlimited virtual registers)
+%1 = load a
+%2 = load b
+%3 = add %1, %2
+
+
 

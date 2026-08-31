@@ -123,5 +123,8 @@ based on Register(unlimited virtual registers)
 %2 = load b
 %3 = add %1, %2
 
+====cmake
+cmake.exe -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_MAKE_PROGRAM=E:/Clion/CLion 2025.2.1/bin/ninja/win/x64/ninja.exe" -G Ninja -S . -B ./cmake-build-debug
 
+ cmake.exe --build ./cmake-build-debug --target haic -j 3
 

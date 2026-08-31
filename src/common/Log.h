@@ -58,15 +58,16 @@ public:
 //#define LOG_FATAL(...)	::Log::GetClientLogger()->fatal(__VA_ARGS__)
 #define LOG_FATAL(...)	::Log::GetClientLogger()->critical(__VA_ARGS__)
 
-#if DEBUG || _DEBUG
+
+#ifndef NDEBUG
 
 #define LOG_CORE_DEBUG(...)	::Log::GetCoreLogger()->debug(__VA_ARGS__)
 
 #define LOG_DEBUG(...)	::Log::GetClientLogger()->debug(__VA_ARGS__)
 
 #else
-#define LOG_CORE_DEBUG(...)
-#define LOG_DEBUG(...)
+#define LOG_CORE_DEBUG(...)  ((void)0)
+#define LOG_DEBUG(...)  ((void)0)
 #endif
 
 

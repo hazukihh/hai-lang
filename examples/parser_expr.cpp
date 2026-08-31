@@ -32,13 +32,14 @@ Expr::Ptr test_parse_expr_stmt(Lexer* lexer)
     return nullptr;
   }
 
-  auto left = parse_expression(lexer,0);
+  auto left = parse_expression(lexer);
   lexer->skip(ETK_Semi);
 
 
   return left;
 }
 
+constexpr auto UTF8_BOM_CSTR = "\xEF\xBB\xBF";
 
 
 int internal_main(int argc,char** argv)
@@ -81,7 +82,13 @@ int internal_main(int argc,char** argv)
       std::istreambuf_iterator<char>(ifs),
       std::istreambuf_iterator<char>());
 
-    input = src;
+    // auto detect utf-8 bom
+    if (sv_starts_with(src,UTF8_BOM_CSTR))
+    {
+      input = sv_slice(src,3);
+    } else {
+      input = src;
+    }
   }
 
 

@@ -1,11 +1,13 @@
 #ifndef HAILANG_ARENA_H
 #define HAILANG_ARENA_H
 #pragma once
-#include <cassert>
+
 #include <cstdint>
 
+#include "common/Assert.h"
+
 // TODO: Arena
-#if defined(DEBUG) || defined(_DEBUG)
+#ifndef NDEBUG
 
 #define G_WATCHER(name) inline size_t g_##name##_allocted_size = 0
 
@@ -28,11 +30,6 @@ void operator delete(void* ptr,size_t size) {\
 }while (0)
 
 
-
-#else
-#define G_WATCHER
-#define G_OPERATOR_NEW_WATCHER
-#define G_WATCHER_AOP
 #endif
 
 struct Arena
@@ -58,12 +55,18 @@ struct Arena
 
   void* alloc(const size_t size)
   {
-    assert(size != 0 && "Arena can't alloc 0 ");
-    assert(size_ + size <= cap_ && "Arena empty resource");
+    HAI_ASSERT(size != 0 && "Arena can't alloc 0 ");
+    HAI_ASSERT(size_ + size <= cap_ && "Arena empty resource");
 
-    void* ptr = pool_ + size_ + size;
+    void* ptr = pool_ + size_;
     size_ += size;
     return ptr;
+  }
+
+  template<typename T>
+  T* alloc_as(const size_t cnt = 1)
+  {
+    return static_cast<T*>(this->alloc(sizeof(T) * cnt));
   }
 
   // only call when the pool is on heap(by new)

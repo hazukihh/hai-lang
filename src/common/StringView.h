@@ -33,6 +33,11 @@ inline bool is_alnum(int c)
 }
 
 
+template<size_t N>
+[[nodiscard]] constexpr StringView sv_from_lit(const char (&cstr)[N])
+{
+  return StringView{cstr, N - 1};
+}
 
 [[nodiscard]] ::std::string sv_to_str(StringView sv);
 /**
@@ -57,10 +62,16 @@ template<typename... Args>
 
 #ifdef STRING_VIEW_IMPLEMENTATION
 
-
+// template <size_t N>
+// constexpr StringView sv_from_lit(const char(& cstr)[N])
+// {
+//   return StringView{cstr, N - 1};
+// }
 
 ::std::string sv_to_str(StringView sv) {
   return ::std::string(sv.begin(), sv.end());
+  // c++17 20:
+  // return ::std::string(sv);
 }
 
 

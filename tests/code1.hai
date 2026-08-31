@@ -1,7 +1,7 @@
 ﻿/// #0 text lexer
 
 /// ##0.1 test utf-8
-//中文sss牛牛 // error
+//中文sss牛牛 // no abort,but error
 
 /// ##0.2 test StrLit CharLit
 
@@ -16,7 +16,7 @@ x = '\\';
 
 /// ##0.3 test Keyword Identifier
 
-x = for + forword;
+x = for + forward;
 
 
 /// #1 test expr_stmt
@@ -30,7 +30,7 @@ x =
 
 /// ##1.2 test LR-Paren match
 
-// (1)) // error,lack '('
+//(1)); // error,lack '('
 
 //(
 //((1))
@@ -47,7 +47,7 @@ x = y ^ x & 1 | 2 ^ 3;
 
 /// ##1.5 test fn_call
 
-x = foo();
+x = foo() + 1;
 x = foo(77 ^ 2 & 4, (1 +2) * "1234" ,y,y ^ x & 1 | 2 ^ 3);
 //x = foo(,77 ^ 2 & 4,z);   // error
 //x = foo(77 ^ 2 & 4, ,y); // error
@@ -71,14 +71,92 @@ fns[(-1 + 10) - 5 * 4 / 2 + -- 7](6);
 ;;
 
 
-
+/// ##1.9 test l-value
+x+3 = 4;
 
 /// #2 test ret_stmt
 return (1 +2) * "1234" / '\0';
-return;
+//return; // temp error ?  return void;
 
 
 /// #3 test block_stmt;
 {{
 return x - y;
 }}
+//} // error
+
+/// #4 test if stmt
+
+/// ##4.1
+if 1 && 2 {
+ foo(1);
+}
+
+/// ##4.2
+if 1 && 2 {
+ foo(1);
+} else {
+  print("hello");
+}
+
+/// ##4.3
+if flag {
+ foo(32,oo1oo);
+} else if x-flag{
+  print("hello");
+}
+
+
+
+/// #5 test While_Stmt
+/// ##5.1 test break,continue
+while (1) {
+  if cond { continue; }
+  break;
+}
+
+/// #6 test Var_Decl_Stmt
+
+var s1; // sema error?
+
+var s_32 : [3]*s32;
+var s01 : void;
+//var s02 : ();
+var s1 : s32;
+var s2 : *s32;
+var s3 : [3]s32;
+var s31 : *[3]s32;
+
+var s4 : []s32;
+//var s5 : [...]s32;
+//var s6 : ()-> void; // fn_type_parsing TODO
+//var s7 : (s32,f32)-> void; // fn_type_parsing TODO
+//var s8 : Vec<s32>;
+//var s9 : Vec<Vec<s32>>;
+//var s10: (a1,a2,a3,a4) // tuple TODO
+
+/// ===== TODO
+///s32.len is compile const val;
+///s32 still is a arr pointer
+///s2: *T can't use [],it is just a pointer to a obj; []T is a pointer to objs
+/// =====
+
+var s2 : type;
+var s3 = expr1();
+var s3 :T1= expr2();
+
+
+/// #7 test Fn_Decl_Stmt
+
+fn main () -> void {
+  print("hello");
+}
+
+fn main (arg1 : int) -> void {
+  print("hello");
+}
+
+fn main (arg1: s32, arg2: string, arg3:bool,arg4:f64) -> void {
+  print("hello");
+}
+

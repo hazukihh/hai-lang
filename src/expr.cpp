@@ -1,43 +1,76 @@
 #include "expr.h"
 
 #include "lexer.h"
+#include "common/variant_match.h"
 
-void Expr::print(std::string(* get_value)(const Token& t), int depth) const
+void expr_print(const Expr& self,std::string(* get_value)(const Token& t), int depth)
 {
   constexpr int SPACE_SIZE = 4;
-
-  const bool is_punct_type = ETK_PUNCT_START <= this->atom.type && this->atom.type < ETK_PUNCT_END;
-
-
-  if (right)
-  {
-    if (this->atom.type == ETK_LParen)
-    {
-      Expr::Ptr p = right;
-      int cnt = 1;
-      while (p)
+  // print right
+  MATCH(self.data,
+    [=](const CallExpr& node){
+      if (node.params ==nullptr || node.params_cnt == 0)
       {
-        LOG_DEBUG("{:{}}--arg{}--","",(depth+1)*SPACE_SIZE,cnt);
-        cnt += 1;
-        p->print(get_value,depth + 1);
-        p = p->next;
+        LOG_DEBUG("{:{}}nul","",(depth+1)*SPACE_SIZE);
       }
-    }
-    else
-    {
-      right->print(get_value,depth + 1);
-    }
-  }
-  else if (is_punct_type) LOG_DEBUG("{:{}}nul","",(depth+1)*SPACE_SIZE);
+      else for (uint32_t i = 0; i < node.params_cnt; ++i)
+      {
+        if (node.params[i]) {
+          LOG_DEBUG("{:{}}--arg{}--","",(depth + 1) * SPACE_SIZE, i + 1);
+          expr_print(node.params[i],get_value, depth + 1);
+        }
+      }
+    },
+    [=](const UnaryExpr& node){
+      expr_print(node.operand,get_value,depth+1);
+    },
+    [=](const BinaryExpr& node){
+      expr_print(node.rhs,get_value,depth+1);
+    },
+    [=](const MemberExpr& node){
+      expr_print(node.member,get_value,depth+1);
+    },
+    [=](const ArrSubExpr& node){
+      expr_print(node.index,get_value,depth+1);
+    },
+    [](const auto& _){}
+  );
 
 
+  // print self
+  LOG_DEBUG("{:{}}{}","",depth*SPACE_SIZE,get_value(self.atom));
 
-  LOG_DEBUG("{:{}}{}","",(depth)*SPACE_SIZE,get_value(this->atom));
-
-  if (left) left->print(get_value,depth + 1);
-  else if (is_punct_type) LOG_DEBUG("{:{}}nul","",(depth+1)*SPACE_SIZE);
+  // print left
+  MATCH(self.data,
+    [=](const CallExpr& node) {
+      expr_print(node.callee,get_value,depth+1);
+    },
+    [=](const BinaryExpr& node) {
+      expr_print(node.lhs,get_value,depth+1);
+    },
+    [=](const MemberExpr& node) {
+      expr_print(node.base,get_value,depth+1);
+    },
+    [=](const ArrSubExpr& node) {
+      expr_print(node.base,get_value,depth+1);
+    },
+    [=](const UnaryExpr& ) {
+      LOG_DEBUG("{:{}}nul","",(depth+1)*SPACE_SIZE);
+    },
+    [](const auto& _){}
+  );
 }
 
+void expr_print(const Expr* self,std::string (*get_value)(const Token& t),int depth /*= 0*/)
+{
+  if (!self)
+  {
+    constexpr int SPACE_SIZE = 4;
+    LOG_DEBUG("{:{}}null-expr", "", depth*SPACE_SIZE);
+    return;
+  }
+  expr_print(*self,get_value,depth);
+}
 
 
 /// ==============
@@ -81,7 +114,7 @@ enum EPrecedence : uint8_t
   PREC_SHIFT       =90,  // <<,>>
   PREC_TERM        =100, // + -
   PREC_FACTOR      =110, // * / %
-  PREC_UNARY       =120, // ! - ~ + unref-* addressof&
+  PREC_UNARY       =120, // ! - ~ + unref-* address-of-&
   PREC_CALL        =130, // ()
   PREC_POST        =140, // . -> []
   PREC_PRIMARY     =150
@@ -120,9 +153,8 @@ static Expr::Ptr infix_arr(Lexer *lexer,const Token& self,Expr::Ptr left);
 
 const Rule& GetRules(ETokenType index)
 {
-  // TODO: flat_map?
-  static std::unordered_map<int,Rule> kRules = {
-    {ETK_None,{}},
+  static phmap::flat_hash_map<int,Rule> kRules = {
+    {ETK_None,{}}, // invalid or default
     {ETK_Assign ,{nullptr, infix_binary_op,10,1}},
     {ETK_Or,{nullptr,infix_binary_op,20}},
     {ETK_And,{nullptr,infix_binary_op,30}},
@@ -193,17 +225,72 @@ Expr::Ptr ptr_move(Expr::Ptr& ptr)
 
 
 Expr::Ptr prefix_primary(Lexer *, const Token& self) {
-  return MAKE_PTR(Expr)(self);
+  switch (self.type) {
+  case ETK_Identifier: {
+    return MAKE_PTR(Expr)(Expr{
+      .atom = self,
+      .data = IdentExpr{}
+    });
+  }break;
+  case ETK_IntLit: {
+    IntLitExpr int_lit;
+    // TODO: parse int_lit
+    auto result = std::from_chars(self.text.data(),self.text.data()+self.text.size(),int_lit.val);
+
+    HAI_ASSERT(result.ec == std::errc{} && result.ptr == self.text.data()+self.text.size()
+      && "parse IntLit failed");
+
+    return MAKE_PTR(Expr)(Expr{
+      .atom = self,
+      .data = int_lit
+    });
+  }break;
+  case ETK_FlLit: {
+    FloatLitExpr fl_lit;
+    // TODO: parse fl_lit
+    auto result = std::from_chars(self.text.data(),self.text.data()+self.text.size(),fl_lit.val);
+
+    HAI_ASSERT(result.ec == std::errc{} && result.ptr == self.text.data()+self.text.size()
+      && "parse FloatLit failed");
+
+    return MAKE_PTR(Expr)(Expr{
+      .atom = self,
+      .data = fl_lit
+    });
+  }break;
+  case ETK_CharLit: {
+    CharLitExpr lit;
+    // TODO: parse charlit
+    // lit.ch = parse_ch(self.text);
+    return MAKE_PTR(Expr)(Expr{
+      .atom = self,
+      .data = lit
+    });
+  }break;
+  case ETK_StrLit: {
+    StrLitExpr str_lit;
+    // TODO: Symbol Table / String Pool
+    // lit.str = parse_str(self.text);
+    return MAKE_PTR(Expr)(Expr{
+      .atom = self,
+      .data = str_lit
+    });
+  }break;
+  default: break;
+  }
+  HAI_ASSERT(false && "unreachable");
+  return nullptr;
 }
 
 Expr::Ptr prefix_unary_op(Lexer *lexer, const Token& self)
 {
   Expr::Ptr operand = parse_expression(lexer, PREC_UNARY);
 
-  return MAKE_PTR(Expr)({
+  return MAKE_PTR(Expr)(Expr{
     .atom = self,
-    .left = nullptr,
-    .right = MOVE(operand)
+    .data = UnaryExpr{
+      .operand = MOVE(operand)
+    }
   });
 }
 
@@ -225,29 +312,27 @@ Expr::Ptr infix_binary_op(Lexer *lexer, const Token& self,Expr::Ptr left)
   const auto& rule = GetRules(self.type);
   Expr::Ptr right = parse_expression(lexer, rule.lbp - rule.is_right);
 
-  return MAKE_PTR(Expr)({
+  return MAKE_PTR(Expr)(Expr{
     .atom = self,
-    .left = MOVE(left),
-    .right = MOVE(right)
+    .data = BinaryExpr{
+      .lhs = MOVE(left),
+      .rhs = MOVE(right)
+    }
   });
 }
 
-/**
- * @note
- * self->right
- * : arg1
- *    |->next arg2 -next-> arg3 -next-> ...
- */
+
 Expr::Ptr infix_call(Lexer* lexer, const Token& self, Expr::Ptr left)
 {
-  Expr::Ptr result = MAKE_PTR(Expr)(self,MOVE(left));
+
+  std::vector<Expr*> args;
   // call with args
   if (lexer->peek().type != ETK_RParen)
   {
-    Expr::Ptr &p = result->right;
+
     for (;;) {
-      p = parse_expression(lexer);
-      p = p->next;
+
+      args.emplace_back(nullptr) = parse_expression(lexer);
 
       if (lexer->peek().type == ETK_Comma)
       {
@@ -258,18 +343,39 @@ Expr::Ptr infix_call(Lexer* lexer, const Token& self, Expr::Ptr left)
   }
   lexer->skip(ETK_RParen);
 
+  Expr* *param_arr = nullptr;
+  if(!args.empty()) {
+    size_t size = sizeof(Expr*) * args.size();
+    param_arr = static_cast<Expr**>(g_arena.alloc(size));
+    std::memcpy(param_arr,args.data(),size);
+  }
+
+  Expr::Ptr result = MAKE_PTR(Expr)(Expr{
+    .atom = self,
+    .data = CallExpr{
+      .callee = MOVE(left),
+      .params = param_arr,
+      .params_cnt = static_cast<uint32_t>(args.size())
+    }
+  });
+
 
   return result;
 }
 
 Expr::Ptr infix_dot(Lexer* lexer, const Token& self, Expr::Ptr left)
 {
-  Expr::Ptr right = MAKE_PTR(Expr)(lexer->expect(ETK_Identifier));
+  Expr::Ptr right = MAKE_PTR(Expr)(Expr{
+    .atom = lexer->expect(ETK_Identifier),
+    .data = IdentExpr {}
+  });
 
-  return MAKE_PTR(Expr)({
+  return MAKE_PTR(Expr)(Expr{
     .atom = self,
-    .left = MOVE(left),
-    .right = MOVE(right)
+    .data = MemberExpr {
+      .base = MOVE(left),
+      .member = MOVE(right)
+    }
   });
 }
 
@@ -278,10 +384,13 @@ Expr::Ptr infix_arr(Lexer* lexer, const Token& self, Expr::Ptr left)
 {
   Expr::Ptr right = parse_expression(lexer);
   lexer->skip(ETK_RBracket);
-  return MAKE_PTR(Expr)(
-    self,
-    MOVE(left),
-    MOVE(right)
+  return MAKE_PTR(Expr)(Expr{
+    .atom = self,
+    .data = ArrSubExpr {
+      .base = MOVE(left),
+      .index = MOVE(right)
+    }
+  }
   );
 }
 

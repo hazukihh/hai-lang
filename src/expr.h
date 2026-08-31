@@ -2,9 +2,11 @@
 #define HAILANG_EXPR_H
 #pragma once
 #include <memory>
+#include <variant>
 
 #include "tokens_def.h"
 #include "arena.h"
+#include "type.h"
 #include "common/Log.h"
 
 /**
@@ -22,32 +24,125 @@ inline Arena g_arena {
 };
 #endif
 
-
+#ifndef NDEBUG
 G_WATCHER(expr);
+#endif
 
-// struct LiteralExpr;
-// struct UnaryOpExpr;
-// struct BinaryOpExpr;
-// struct CallExpr;
-// struct MemberExpr;
-// struct ArrSubExpr;
+struct Expr;
+
+// TODO:
+//  SourceLocation Loc; // 位置 原始文本通过 SourceManager 获取
+//  LineNumberManager
+
+//TODO: IdentRefExpr
+struct IdentExpr
+{
+  IdentInfo *ident = nullptr;
+};
+// struct LiteralExpr
+// {
+//   union
+//   {
+//     uint64_t integer = 0;
+//     double fl;
+//     uint8_t ch;
+//     const uint8_t* str;
+//   };
+// };
+// TODO: Lit { tag; val; suffix;}
+struct IntLitExpr
+{
+  // TODO: BigInt
+  uint64_t val = 0;
+  // suffix?
+};
+struct FloatLitExpr
+{
+  // TODO: BigFl
+  long double val = 0;
+  // suffix?
+};
+
+struct CharLitExpr
+{
+  uint8_t val = 0;
+
+};
+struct StrLitExpr
+{
+  const uint8_t* val = nullptr;
+  // suffix?
+};
+
+struct UnaryExpr
+{
+  Expr* operand = nullptr;
+};
+struct BinaryExpr
+{
+  Expr* lhs = nullptr;
+  Expr* rhs = nullptr;
+};
+
+struct CallExpr
+{
+  Expr* callee = nullptr;
+  Expr* *params = nullptr;
+  uint32_t params_cnt = 0;
+};
+struct MemberExpr
+{
+  Expr* base = nullptr;
+  Expr* member = nullptr;
+};
+struct ArrSubExpr
+{
+  Expr* base = nullptr;
+  Expr* index = nullptr;
+};
+
+// union
+// {
+//   IdentExpr ident;
+//   LiteralExpr literal;
+//   UnaryOpExpr unary_op;
+//   BinaryOpExpr binary_op;
+//   CallExpr call_op;
+//   MemberExpr mem_op;
+//   ArrSubExpr arr_sub_op;
+// };
+
+enum EExprTag {
+  Expr_Invalid,
+  Expr_Ident,
+  Expr_IntLit,
+  Expr_FloatLit,
+  Expr_CharLit,
+  Expr_StrLit,
+  Expr_Unary,
+  Expr_Binary,
+  Expr_Call,
+  Expr_Member,
+  Expr_ArrSub,
+  Expr_Count
+};
+using ExprData = std::variant<
+  std::monostate,
+  IdentExpr,
+  IntLitExpr,
+  FloatLitExpr,
+  CharLitExpr,
+  StrLitExpr,
+  UnaryExpr,
+  BinaryExpr,
+  CallExpr,
+  MemberExpr,
+  ArrSubExpr
+>;
+static_assert(std::variant_size_v<ExprData> ==  Expr_Count);
 
 struct Expr
 {
-  // G_OPERATOR_NEW_WATCHER_BY(expr)
-  void* operator new(size_t size)
-  {
-    g_expr_allocted_size += size;
-    return ::operator new(size);
-  }
-
-  void operator delete(void* ptr, size_t size)
-  {
-    g_expr_allocted_size -= size;
-    LOG_DEBUG("delete {}",static_cast<Expr*>(ptr)->atom.to_str());
-    return ::operator delete(ptr);
-  }
-
 #if EXPR_VERSION == 1
   using Ptr = std::unique_ptr<Expr>;
 #else
@@ -55,46 +150,17 @@ struct Expr
 #endif
 
   Token atom {.type = ETokenType::ETK_None};
-  // TODO: store by left+right or vec![] ? which better ?
-  // unary_op: right
-  // binary_op: left + right
-  Ptr left = nullptr;
-  Ptr right = nullptr;
 
-  // TODO: what is better for fn_call ?
-  // fn_call: fn_params_list
-  Ptr next = nullptr;
+  ExprData data;
 
-  void print(std::string (*get_value)(const Token& t),int depth = 0) const;
 };
 
+void expr_print(const Expr& self,std::string (*get_value)(const Token& t),int depth = 0);
+void expr_print(const Expr* self,std::string (*get_value)(const Token& t),int depth = 0);
+
+
+
 struct Lexer;
-// struct LiteralExpr
-// {
-//   union
-//   {
-//     uint64_t integer;
-//     double fl;
-//     uint8_t ch;
-//     uint8_t* str;
-//   };
-// };
-// struct UnaryOpExpr
-// {
-//   Expr::Ptr operand;
-// };
-// struct BinaryOpExpr
-// {
-//   Expr::Ptr left;
-//   Expr::Ptr right;
-// };
-//
-// struct CallExpr
-// {
-//   Expr::Ptr func;
-//   Expr::Ptr *args;
-//   uint32_t args_cnt;
-// };
 
 /**
  * @brief  Pratt parser for parsing expressions.

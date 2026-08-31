@@ -1,5 +1,6 @@
 #pragma once
 #include "common/Log.h"
+#include "common/Assert.h"
 #include "common/StringView.h"
 
 #include "tokens_def.h"
@@ -8,22 +9,22 @@
 constexpr auto FLAG_STRICT_MODE = true;
 
 inline void error_at(const Token& t,StringView msg) {
-  fmt::memory_buffer buf;
-  fmt::format_to(std::back_inserter(buf),
-    "at line {}({})\n{}\n",
-      t.line,t.column,
-      StringView{t.text.data() - t.column,t.column + t.text.size()}
-    );
-  size_t offset = t.column;
-  for (int i =0;i < offset;++i)
-  {
-    buf.push_back(' ');
-  }
-  fmt::format_to(std::back_inserter(buf),
-    "^ got \"{}\", {}",get_type_tag_str(t.type),msg);
 
-  LOG_ERROR(fmt::to_string(buf));
-  exit(1);
+  auto column = t.loc.column(t.text.data());
+
+
+  LOG_ERROR(
+    "at line {}({}): got \"{}\":\"{}\", {}\n"
+    "| {}\n"
+    "| {:{}}^",
+    t.loc.line, column, t.to_str(),get_type_tag_str(t.type),msg,
+    StringView{t.loc.line_start,column + t.text.size()},
+    "",column
+  );
+
+
+  // TODO: how to continue to check; temp exit
+  HAI_ASSERT(false);
 }
 
 inline void error_at(const Token& t,ETokenType expected) {
@@ -39,14 +40,14 @@ struct Lexer
   const char* base_;
   uint32_t row_ = 1;
 
-  // TODO: lexer.src_ : debug_assert Token.text.data() is in the range of src_
-#if defined(DEBUG) || defined(_DEBUG)
+  // lexer.src_ : debug_assert Token.text is in the range of src_ : debug_check_text_loc_valid(t.text);
+#ifndef NDEBUG
   std::string_view src_;
 #endif
 
   bool init(std::string_view src)
   {
-#if defined(DEBUG) || defined(_DEBUG)
+#ifndef NDEBUG
     src_ = src;
 #endif
     input_ = src;
@@ -78,7 +79,7 @@ struct Lexer
 
       if(sv_starts_with(input_,SlComment)) {
 
-        // Chop until endline
+        // Chop until the end of line
         size_t pos = input_.find('\n');
         if(pos == StringView::npos) {
           pos = input_.size();
@@ -101,13 +102,15 @@ struct Lexer
       return Token{
         .type = ETK_EOF,
         .text = input_,
-        .line = row_,
-        .column = static_cast<uint32_t>(input_.data() - base_)
+        .loc = {
+          .line = row_,
+          .line_start = base_
+        }
       };
     }
 
     // Puncts
-    assert(kEStr_Puncts[0][1] != '\0' && "should check the 2-char ops first");
+    HAI_ASSERT(kEStr_Puncts[0][1] != '\0' && "should check the 2-char ops first");
     /**
      * TODO：how to optimize from O(n) to O(1)
      *    ？先hash检查是否是one char ops,如果是就检查下一个字符，是否可以2 char ops
@@ -124,8 +127,10 @@ struct Lexer
         return Token{
           .type = static_cast<ETokenType>(i),
           .text = sv,
-          .line = row_,
-          .column = static_cast<uint32_t>(sv.data() - base_)
+          .loc = {
+            .line = row_,
+            .line_start = base_
+          }
         };
       }
     }
@@ -144,8 +149,10 @@ struct Lexer
       return Token{
         .type = ETK_IntLit,
         .text = literal_sv,
-        .line = row_,
-        .column = static_cast<uint32_t>(literal_sv.data() - base_)
+        .loc = {
+          .line = row_,
+          .line_start = base_
+        }
       };
     }
 
@@ -179,16 +186,20 @@ struct Lexer
           error_at(Token{
             .type = ETK_StrLit,
             .text = sv,
-            .line = row_,
-            .column = static_cast<uint32_t>(sv.data() - base_)
+            .loc = {
+              .line = row_,
+              .line_start = base_
+            }
           },"StringLiteral lack Right-'\"'(Strict Mode)");
         }
       }
       return Token{
         .type = ETK_StrLit,
         .text = sv,
-        .line = row_,
-        .column = static_cast<uint32_t>(sv.data() - base_)
+        .loc = {
+          .line = row_,
+          .line_start = base_
+        }
       };
     }
 
@@ -215,13 +226,16 @@ struct Lexer
           error_at(Token{
             .type = ETK_CharLit,
             .text = sv,
-            .line = row_,
-            .column = static_cast<uint32_t>(sv.data() - base_)
+            .loc = {
+              .line = row_,
+              .line_start = base_
+            }
           },"CharLiteral lack Right-'\''(Strict Mode)");
         }
       }
       // TODO: Similar to StringLit. Should be error when the char len > 1 ? or delay ?
       if constexpr (FLAG_STRICT_MODE) {
+        // FIXME: support detect \ddd:三位八进制,\xhh:二位十六进制
         if(sv.size()<3 ||
           (sv[1]!='\\' && sv.size()!=3) ||
           (sv[1]=='\\' && sv.size()!=4))
@@ -229,16 +243,20 @@ struct Lexer
           error_at(Token{
             .type = ETK_CharLit,
             .text = sv,
-            .line = row_,
-            .column = static_cast<uint32_t>(sv.data() - base_)
+            .loc = {
+              .line = row_,
+              .line_start = base_
+            }
           },"CharLiteral must be single char");
         }
       }
       return Token{
         .type = ETK_CharLit,
         .text = sv,
-        .line = row_,
-        .column = static_cast<uint32_t>(sv.data() - base_)
+        .loc = {
+          .line = row_,
+          .line_start = base_
+        }
       };
     }
 
@@ -261,8 +279,10 @@ struct Lexer
         return Token{
           .type = keyword_index,
           .text = sv,
-          .line = row_,
-          .column = static_cast<uint32_t>(sv.data() - base_)
+          .loc = {
+            .line = row_,
+            .line_start = base_
+          }
         };
       }
 
@@ -271,8 +291,10 @@ struct Lexer
       return Token{
         .type = ETK_Identifier,
         .text = sv,
-        .line = row_,
-        .column = static_cast<uint32_t>(sv.data() - base_)
+        .loc = {
+          .line = row_,
+          .line_start = base_
+        }
       };
     }
 
@@ -281,8 +303,10 @@ struct Lexer
     Token unknown = {
       .type = ETK_None,
       .text = sv_slice(input_,0,1),
-      .line = row_,
-      .column = static_cast<uint32_t>(input_.data() - base_)
+      .loc = {
+        .line = row_,
+        .line_start = base_
+      }
     };
     input_ = sv_slice(input_,1);
     return unknown;
@@ -292,42 +316,25 @@ struct Lexer
   Token peek() {
     Lexer lexer_copy = *this;
     auto t = lexer_copy.get_token();
-#if defined(DEBUG) || defined(_DEBUG)
-    assert(src_.data() <= t.text.data()
-        && t.text.data() <= src_.data() + src_.size()
-        && "t.text.data() out of range of string_view src");
-#endif
+    debug_check_text_loc_valid(t);
     return t;
   }
 
   [[nodiscard]]
   Token next() {
     auto t = get_token();
-#if defined(DEBUG) || defined(_DEBUG)
-    assert(src_.data() <= t.text.data()
-        && t.text.data() <= src_.data() + src_.size()
-        && "t.text.data() out of range of string_view src");
-#endif
+    debug_check_text_loc_valid(t);
     return t;
   }
 
   void consume() {
-#if defined(DEBUG) || defined(_DEBUG)
     auto t = get_token();
-    assert(src_.data() <= t.text.data()
-        && t.text.data() <= src_.data() + src_.size()
-        && "t.text.data() out of range of string_view src");
-#else
-    (void)get_token();
-#endif
+    debug_check_text_loc_valid(t);
   }
+
   bool skip(ETokenType expected) {
     Token  t = get_token();
-#if defined(DEBUG) || defined(_DEBUG)
-    assert(src_.data() <= t.text.data()
-        && t.text.data() <= src_.data() + src_.size()
-        && "t.text.data() out of range of string_view src");
-#endif
+    debug_check_text_loc_valid(t);
     if (t.type != expected)
     {
       error_at(t,expected);
@@ -337,15 +344,25 @@ struct Lexer
   }
   Token expect(ETokenType expected) {
     const Token  t = get_token();
-#if defined(DEBUG) || defined(_DEBUG)
-    assert(src_.data() <= t.text.data()
-        && t.text.data() <= src_.data() + src_.size()
-        && "t.text.data() out of range of string_view src");
-#endif
+    debug_check_text_loc_valid(t);
     if (t.type != expected)
     {
       error_at(t,expected);
     }
     return t;
+  }
+private:
+  void debug_check_text_loc_valid(const Token& t) const
+  {
+#ifndef NDEBUG
+    auto* line_start = t.loc.line_start;
+    auto* start = t.text.data();
+    auto* end = t.text.data() + t.text.size();
+    HAI_ASSERT(src_.data() <= line_start
+      && line_start <= start
+      && start <= end
+      && end <= src_.data() + src_.size()
+      && "token.text or .loc.line_start out of range of string_view src");
+#endif
   }
 };

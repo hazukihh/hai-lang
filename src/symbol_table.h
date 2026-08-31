@@ -1,0 +1,7 @@
+#ifndef HAILANG_SYMBOL_TABLE_H
+#define HAILANG_SYMBOL_TABLE_H
+#pragma once
+
+
+
+#endif //HAILANG_SYMBOL_TABLE_H

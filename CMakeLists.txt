@@ -11,6 +11,7 @@ add_executable(haic)
 target_include_directories(haic PRIVATE
     src
     deps/spdlog/include
+    deps/parallel-hashmap/include # flat_hash_map ...
 )
 target_sources(haic PRIVATE
     src/common/Log.cpp
@@ -26,7 +27,8 @@ target_sources(haic PRIVATE
     src/syntax_parser.cpp
 
 #    examples/lexer_path_arg.cpp
-    examples/parser.cpp
+#    examples/parser_expr.cpp
+    examples/parser_stmt.cpp
 )
 
 

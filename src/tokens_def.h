@@ -2,10 +2,10 @@
 #define TOKENS_DEF_H
 #pragma once
 
-#include <cassert>
-#include <unordered_map>
-#include <unordered_set>
+#include <parallel_hashmap/phmap.h>
 
+
+#include "common/Assert.h"
 #include "common/StringView.h"
 
 
@@ -66,6 +66,7 @@ constexpr const char* SlComment = "//";
 
 // two-char运算符
 #define PUNCT_2CHAR_OPS_EXPAND(XX)\
+  XX(Dot3        ,"..."),\
   XX(Eq          ,"=="),\
   XX(NotEq       ,"!="),\
   XX(LessEq      ,"<="),\
@@ -160,13 +161,13 @@ static_assert(ETK_PUNCT_END - ETK_PUNCT_START == sizeof(kEStr_Puncts)/sizeof(con
 #undef PUNCT_ARR_X
 
 inline const char* EStrKeyword(ETokenType type) {
-  assert(ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END && "not keyword type in ETokenType");
+  HAI_ASSERT(ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END && "not keyword type in ETokenType");
 
   return kEStr_Keywords[type - ETK_KEYWORD_START];
 }
 
 inline const char* EStrPunct(ETokenType type) {
-  assert(ETK_PUNCT_START <= type && type < ETK_PUNCT_END && "not punct type in ETokenType");
+  HAI_ASSERT(ETK_PUNCT_START <= type && type < ETK_PUNCT_END && "not punct type in ETokenType");
 
   return kEStr_Puncts[type - ETK_PUNCT_START];
 }
@@ -176,8 +177,7 @@ inline const char* EStrPunct(ETokenType type) {
 #define KEYWORD_MAP_X(Name) {#Name,ETK_##Name}
 inline ETokenType KeywordId(std::string_view sv)
 {
-  // TODO: flat_map
-  static std::unordered_map<std::string_view,ETokenType> keyword_map = {
+  static phmap::flat_hash_map<std::string_view,ETokenType> keyword_map = {
     KEYWORD_EXPAND(KEYWORD_MAP_X)
   };
 
@@ -212,6 +212,19 @@ inline bool IsSymbol(char ch)
   return is_alnum(ch) || ch == '_';
 }
 
+struct TokenLoc
+{
+  // std::string filename; // TODO: filename,FILE_ID
+  uint32_t line = 0;
+  const char* line_start = nullptr;
+
+  uint32_t column(const char* text_start) const
+  {
+    HAI_ASSERT(text_start >= line_start);
+    return static_cast<uint32_t>(text_start - line_start);
+  }
+};
+
 /**
  * @note the value of identifier,literals  is stored by the string_view of input_src
  */
@@ -222,8 +235,7 @@ struct Token
 
   StringView text;
 
-  uint32_t line = 0;
-  uint32_t column = 0;
+  TokenLoc loc;
 
   // Identifier,IntLit,FlLit,StrLit will return .text, others return type_tag_str
   [[nodiscard]] StringView to_str() const
@@ -250,7 +262,7 @@ struct Token
     {
       return EStrPunct(type);
     }
-    assert(false);
+    HAI_ASSERT(false);
     return "<Unknown>";
   }
 };
@@ -272,13 +284,13 @@ struct Token
   }
   if (ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END)
   {
-    return EStrKeyword(type);
+    return "<Keyword>";
   }
   if (ETK_PUNCT_START <= type && type < ETK_PUNCT_END)
   {
-    return EStrPunct(type);
+    return "<Punct>";
   }
-  assert(false);
+  HAI_ASSERT(false);
   return "<Unknown>";
 }
 

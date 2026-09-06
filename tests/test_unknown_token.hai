@@ -1,0 +1,4 @@
+/// text lexer
+/// test utf-8
+
+中文sss牛牛 // error

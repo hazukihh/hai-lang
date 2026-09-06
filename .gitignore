@@ -76,6 +76,8 @@ Testing/
 /out/
 /build/
 
+/deps/gtest/
+
 /tests/*.exe
 /tests/*.sh
 /tests/Makefile

@@ -10,10 +10,34 @@
 /* changelog
 
 TODO: support unary-plus or not ?
-TODO: support the error recover by Panic Mode（恐慌模式）
-TODO: support lit_suffix in parse_expr() ?
-TODO: type.h,symbol_table.h,sema.h; syntax_parser.h -> parser.h
+TODO: TokenLoc better solution for error report:
+	(now)(1) int line;const char* line_start; 提前计算line值,column值延迟到错误时，结合text_start `:*const char` 计算
+	(2) "一些标记实现将位置存储为两个数字：从源文件开始到词素开始的偏移量，以及词素的长度。扫描器无论如何都会知道这些数字，因此计算这些数字没有任何开销。通过回头查看源文件并计算前面的换行数，可以将偏移量转换为行和列位置。这听起来很慢，确实如此。然而，只有当你需要向用户实际显示行和列的时候，你才需要这样做。大多数标记从来不会出现在错误信息中。对于这些标记，你花在提前计算位置信息上的时间越少越好。" => 将line值也延迟到错误发生时计算，从源文件开头src `:* const char`开始扫描计算
 
+TODO: support lit_suffix in parse_expr() ?
+
+TODO: type.h,symbol_table.h,sema.h;
+
+
+
+version-0.1.6:
+  (1)impl BasicTypeSystem.TypeInfo.<fn_type>
+    "fn()->void" ,"fn(t1,t2,...)->void" ,"fn(a1:t1,a2:t2,...)->void"
+  (2)impl Multi_Comment in lexer.h, Supports nested comments
+  (3)impl the PanicMode for the ErrorPrint in Lexer(Parser)
+    TODO: haven't test all
+  (4.1)Lexer when StrLit or CharLit lack of Right-'"'-'\''.
+    immediately PrintError(),
+    and ErrorRecover: From Left-'"'-'\'' to (\r\n | \n) are treated as Literal.
+    Then Set isPanic false.
+  (4.2)Lexer don't check  the char_len == 1 in CharLit (examples: '' 'xy' '\\' '\0' '\\\')
+    the CharLit will same as StrLit, the check delay to The-Step-Sema
+  (5)Optimize: the Lexer(Parser) cache two Token in buf_.(used with buf_size_)
+    next(),peek(),peek1() are get token from buf_. when needed, call get_token() and cache Token to buf_
+
+  (6)FIX: forget to add prefix_unary_op for address-of-"&" and ( unref-"*" or ".*")
+    TODO: which better? use *p or p.* ?
+      temp not impl prefix_unary_op for unref
 
 version-0.1.5:
   FIX: silly bug at "expr.cpp".infix_call(...);
@@ -37,7 +61,7 @@ version-0.1.5:
   impl Basic Stmt and Basic decl: @return @block_Stmt @if @while @break @continue @var_decl @fn_decl
     TODO: IdentInfo?? (now just StringView)
   impl Basic Type parse System: TypeInfo
-    TODO: parse_type(): support parsing fn_type like ()->void ... (a1,a2,a3) -> T;
+    TO[0.1.6#1]DO: parse_type(): support parsing fn_type like ()->void ... (a1,a2,a3) -> T;
     TODO: impl Type* and TypePool? (now just StringView for Builtin and Named)
 
   replace assert() with custom assert "HAI_ASSERT()"
@@ -63,9 +87,9 @@ version-0.1.2:
   Lexer: **basic** support StrLit and CharLit, remove '\'','"' from Puncts (Operators)
     TODO: support ALL Escape Character-'\<.>';
     FIXME: support detect \ddd:三位八进制,\xhh:二位十六进制
-    TODO: how to deal with the lack of Right-'"'-'\'' ?
+    TO[0.1.6#4.1]DO: how to deal with the lack of Right-'"'-'\'' ?
       now default: when lack of Right-'"'-'\'' , will **auto add** Right-'"'-'\'' **at the end of line**;
-    TODO: if the char_len != 1 in CharLit ? '' 'xy' '\\' '\0'
+    TO[0.1.6#4.2]DO: if the char_len != 1 in CharLit ? '' 'xy' '\\' '\0'
       now Strict Mode: will error; not-Strict Mode: same as '"',
   more Precedence(binding power) in kRules
 
@@ -90,6 +114,5 @@ version-0.1:
 
   support comment:
     single-comment "//"
-
 
 */

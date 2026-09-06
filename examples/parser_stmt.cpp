@@ -5,7 +5,7 @@
 
 #include "lexer.h"
 #include "expr.h"
-#include "syntax_parser.h"
+#include "parser.h"
 #include "common/variant_match.h"
 
 
@@ -48,11 +48,11 @@ int internal_main(int argc,char** argv)
     src = argv[2];
     input = sv_trim(src);
 
-    if (sv_starts_with(input,"\""))
+    while (sv_starts_with(input,"\""))
     {
       input = sv_slice(input,1);
     }
-    if (sv_ends_with(input,"\""))
+    while (sv_ends_with(input,"\""))
     {
       input = sv_slice(input,0,input.size()-1);
     }
@@ -90,7 +90,8 @@ int internal_main(int argc,char** argv)
       if(token.type == ETK_EOF) {
         break;
       }
-      LOG_INFO("{} \t\t {}",token.to_str(),kETokenTypeName[token.type]);
+      // LOG_WARN("Lexer: Unknown character: {}", input_[0]);
+      LOG_INFO("{} \t\t {}",token.to_str(),ETokenType_to_Str(token.type));
     }
     LOG_INFO("====Lexer End====");
   }
@@ -103,13 +104,13 @@ int internal_main(int argc,char** argv)
   /// parse_program
   while (lexer.peek().type != ETK_EOF)
   {
-    auto stmt = parse_stmt(&lexer);
+    auto* stmt = parse_stmt(&lexer);
 
-    stmt->print();
+    print(stmt);
     g_arena.rewind(0);
   }
 
-  lexer.skip(ETK_EOF);
+  lexer.expect(ETK_EOF);
 
   return 0;
 }

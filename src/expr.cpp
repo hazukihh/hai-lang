@@ -114,7 +114,7 @@ enum EPrecedence : uint8_t
   PREC_SHIFT       =90,  // <<,>>
   PREC_TERM        =100, // + -
   PREC_FACTOR      =110, // * / %
-  PREC_UNARY       =120, // ! - ~ + unref-* address-of-&
+  PREC_UNARY       =120, // ! - ~ address-of-& unref-* +
   PREC_CALL        =130, // ()
   PREC_POST        =140, // . -> []
   PREC_PRIMARY     =150
@@ -160,7 +160,7 @@ const Rule& GetRules(ETokenType index)
     {ETK_And,{nullptr,infix_binary_op,30}},
     {ETK_BitOr,{nullptr,infix_binary_op,40}},
     {ETK_BitXor,{nullptr,infix_binary_op,50}},
-    {ETK_BitAnd,{nullptr,infix_binary_op,60}},
+    {ETK_BitAnd,{prefix_unary_op,infix_binary_op,60}},
     // Equality
     {ETK_Eq,{nullptr,infix_binary_op,70}},
     {ETK_NotEq,{nullptr,infix_binary_op,70}},
@@ -234,11 +234,7 @@ Expr::Ptr prefix_primary(Lexer *, const Token& self) {
   }break;
   case ETK_IntLit: {
     IntLitExpr int_lit;
-    // TODO: parse int_lit
-    auto result = std::from_chars(self.text.data(),self.text.data()+self.text.size(),int_lit.val);
-
-    HAI_ASSERT(result.ec == std::errc{} && result.ptr == self.text.data()+self.text.size()
-      && "parse IntLit failed");
+    int_lit.val = parse_number<uint64_t>(self.text);
 
     return MAKE_PTR(Expr)(Expr{
       .atom = self,
@@ -247,11 +243,7 @@ Expr::Ptr prefix_primary(Lexer *, const Token& self) {
   }break;
   case ETK_FlLit: {
     FloatLitExpr fl_lit;
-    // TODO: parse fl_lit
-    auto result = std::from_chars(self.text.data(),self.text.data()+self.text.size(),fl_lit.val);
-
-    HAI_ASSERT(result.ec == std::errc{} && result.ptr == self.text.data()+self.text.size()
-      && "parse FloatLit failed");
+    fl_lit.val = parse_number<long double>(self.text);
 
     return MAKE_PTR(Expr)(Expr{
       .atom = self,
@@ -298,10 +290,7 @@ Expr::Ptr prefix_lparen(Lexer *lexer, const Token&)
 {
   Expr::Ptr result = parse_expression(lexer, 0);
 
-  if (! lexer->skip(ETK_RParen))
-  {
-    return nullptr;
-  }
+  lexer->expect(ETK_RParen);
 
   return result;
 }
@@ -325,14 +314,14 @@ Expr::Ptr infix_binary_op(Lexer *lexer, const Token& self,Expr::Ptr left)
 Expr::Ptr infix_call(Lexer* lexer, const Token& self, Expr::Ptr left)
 {
 
-  std::vector<Expr*> args;
+  std::vector<Expr*> temp_arr;
   // call with args
   if (lexer->peek().type != ETK_RParen)
   {
 
     for (;;) {
 
-      args.emplace_back(nullptr) = parse_expression(lexer);
+      temp_arr.emplace_back(nullptr) = parse_expression(lexer);
 
       if (lexer->peek().type == ETK_Comma)
       {
@@ -341,13 +330,13 @@ Expr::Ptr infix_call(Lexer* lexer, const Token& self, Expr::Ptr left)
       else break;
     }
   }
-  lexer->skip(ETK_RParen);
+  lexer->expect(ETK_RParen);
 
   Expr* *param_arr = nullptr;
-  if(!args.empty()) {
-    size_t size = sizeof(Expr*) * args.size();
-    param_arr = static_cast<Expr**>(g_arena.alloc(size));
-    std::memcpy(param_arr,args.data(),size);
+  if(!temp_arr.empty()) {
+    param_arr = g_arena.alloc_as<Expr*>(temp_arr.size());
+
+    std::memcpy(param_arr,temp_arr.data(),sizeof(Expr*) * temp_arr.size());
   }
 
   Expr::Ptr result = MAKE_PTR(Expr)(Expr{
@@ -355,7 +344,7 @@ Expr::Ptr infix_call(Lexer* lexer, const Token& self, Expr::Ptr left)
     .data = CallExpr{
       .callee = MOVE(left),
       .params = param_arr,
-      .params_cnt = static_cast<uint32_t>(args.size())
+      .params_cnt = static_cast<uint32_t>(temp_arr.size())
     }
   });
 
@@ -383,7 +372,8 @@ Expr::Ptr infix_dot(Lexer* lexer, const Token& self, Expr::Ptr left)
 Expr::Ptr infix_arr(Lexer* lexer, const Token& self, Expr::Ptr left)
 {
   Expr::Ptr right = parse_expression(lexer);
-  lexer->skip(ETK_RBracket);
+  lexer->expect(ETK_RBracket);
+
   return MAKE_PTR(Expr)(Expr{
     .atom = self,
     .data = ArrSubExpr {
@@ -396,13 +386,15 @@ Expr::Ptr infix_arr(Lexer* lexer, const Token& self, Expr::Ptr left)
 
 Expr::Ptr parse_expression(Lexer *lexer, uint8_t rbp /* = 0 */)
 {
-  auto left_tok = lexer->next();
+  // FIX: next() -> peek() + not error=>consume()
+  auto left_tok = lexer->peek();
 
   const PrefixFn prefix_fn = GetRules(left_tok.type).prefix;
   if (!prefix_fn) {
-    error_at(left_tok,"expect expression");
+    lexer->error_at(left_tok,"not prefix_fn at this token");
     return nullptr;
   }
+  lexer->consume();
   Expr::Ptr left = prefix_fn(lexer,left_tok);
 
   for (;;) {
@@ -411,19 +403,19 @@ Expr::Ptr parse_expression(Lexer *lexer, uint8_t rbp /* = 0 */)
     if (rule.lbp == 0 || rbp >= rule.lbp) {
       break;
     }
+    // rule(op).lbp != 0 && rbp < rule(op).lbp
 
-    lexer->consume();
     const InfixFn infix_fn = rule.infix;
     if (!infix_fn) {
       // TODO: what msg is better?
-      error_at(op_tok,"expect binary operator or postfix op or ';'");
+      lexer->error_at(op_tok,"expect binary-op or postfix-op or ';'");
       break;
     }
+    lexer->consume();
 
     left = infix_fn(lexer,op_tok,MOVE(left));
   }
 
   return left;
 }
-
 

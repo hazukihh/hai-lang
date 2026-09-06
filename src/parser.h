@@ -54,20 +54,10 @@ struct Var_Decl_Stmt
   Expr* init = nullptr; // optional
 };
 
-struct ParamInfo
-{
-  Token name;
-  TypeInfo *type = nullptr;
-};
-
 struct Fn_Decl_Stmt
 {
   Token name;
-  TypeInfo *ret_type = nullptr;
-
-  ParamInfo *params = nullptr;
-  uint32_t params_cnt = 0;
-
+  TypeInfo *type = nullptr;
   Stmt* body = nullptr; // BlockStmt,not_null
 };
 
@@ -109,8 +99,11 @@ struct Stmt
   using Ptr = Stmt*;
   StmtData data;
 
-  void print(int depth = 0);
+
 };
+
+void print(const Stmt* self,int depth = 0);
+void print(const Stmt& self,int depth = 0);
 
 void ast_print(std::string (*get_value)(const Token& t),int depth = 0);
 

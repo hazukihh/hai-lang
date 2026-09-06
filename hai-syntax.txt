@@ -39,12 +39,26 @@ return ;
 }
 
 <fn_name>();
+```c
+int (*p1)(int, int) = add;   // 函数名可以隐式转化为常量函数指针 "*const fn(int,int)->int"
+int (*p2)(int, int) = &add;  // 显式取地址
+
+```
 
 defer ?  __deinit__ ?
 
 pointer : "&a" or "*a" ?
   "."  / "->" ?
   "*p" / "p.*" ?
+
+// 泛型
+struct Foo(T: Type) {
+    a : T;
+}
+
+var foo1 : Foo(s32) = {
+  .a = 12, // or use ';' ?
+};
 
 
 

@@ -1,0 +1,32 @@
+/// # test StrLit and CharLit
+
+x = "1234  ";
+x = "";
+x = '\\';
+
+// Lexer.error, lack Right-\";
+x = ";
+// Parse.error, expect ';' && Ignore
+_expect_Semi = _ignore;
+
+
+// Lexer.error, lack Right-\'
+z=';
+// Parse.error, expect ';' && Ignore
+_expect_Semi = _ignore;
+
+
+// Lexer.error, lack Right-"
+y = "1234 ';
+// Parse.error, expect ';' && Ignore
+_expect_Semi = _ignore;
+
+
+// Sema.error, char empty
+x = '';
+// Sema.error, 2 char in charLit
+x = '\\\';
+
+
+
+

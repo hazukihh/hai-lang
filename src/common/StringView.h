@@ -10,7 +10,7 @@
 #include <cstring> // memcmp
 using StringView = ::std::string_view;
 
-// FIX: when use isspace, if c not int -1~0~255 ,(utf-8) will error
+// FIX: when use isspace{' ','\t',\n','\v','\f','\r'}, if c not int -1~0~255 ,(utf-8) will error
 inline bool is_space(int c)
 {
   if (c == -1) return false;

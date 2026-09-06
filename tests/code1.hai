@@ -1,20 +1,11 @@
-﻿/// #0 text lexer
+﻿
+/// Lexer.MlComment
+/// Lexer.UnknownChar: utf8
 
-/// ##0.1 test utf-8
-//中文sss牛牛 // no abort,but error
+/// Lexer.StrLit_and_CharLit && Parser.expr_stmt && Sema.StrLit_and_CharLit
 
-/// ##0.2 test StrLit CharLit
 
-x = "1234  ";
-x = "";
-x = '\\';
-//x = ''; // error, char empty
-
-//x = '\\\'; // error, 2 char in charLit
-//y = "1234 '; //error
-//z='; // error
-
-/// ##0.3 test Keyword Identifier
+/// Lexer.Keyword_and_Identifier
 
 x = for + forward;
 
@@ -72,7 +63,7 @@ fns[(-1 + 10) - 5 * 4 / 2 + -- 7](6);
 
 
 /// ##1.9 test l-value
-x+3 = 4;
+x+3 = 4; // sema error
 
 /// #2 test ret_stmt
 return (1 +2) * "1234" / '\0';
@@ -129,21 +120,24 @@ var s31 : *[3]s32;
 
 var s4 : []s32;
 //var s5 : [...]s32;
-//var s6 : ()-> void; // fn_type_parsing TODO
-//var s7 : (s32,f32)-> void; // fn_type_parsing TODO
-//var s8 : Vec<s32>;
-//var s9 : Vec<Vec<s32>>;
-//var s10: (a1,a2,a3,a4) // tuple TODO
+//var s61 : ()-> void; // error
+var s62 : fn()-> void;
+var s71 : fn(s32,f32)-> void;
+var s72 : fn(name1:s32,name2:f32)-> void;
+//var s80 : Vec<s32>;
+//var s81 : Vec<Vec<s32>>; // TODO: $T solution1
+//var s82 : Vec(Vec(s32)); // TODO: $T solution2
+//var s10: (a1,a2,a3,a4) // TODO : tuple-type
 
-/// ===== TODO
+/// ===== TODO: Sema
 ///s32.len is compile const val;
 ///s32 still is a arr pointer
 ///s2: *T can't use [],it is just a pointer to a obj; []T is a pointer to objs
 /// =====
 
-var s2 : type;
-var s3 = expr1();
-var s3 :T1= expr2();
+var s11 : type;
+var s12 = expr1();
+var s13 :T1= expr2();
 
 
 /// #7 test Fn_Decl_Stmt

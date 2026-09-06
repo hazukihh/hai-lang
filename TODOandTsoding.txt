@@ -1,0 +1,29 @@
+# Static Tire Tree: use switch-case
+    https://ieralt.github.io/craftinginterpreters_zh/16.按需扫描.html#_16-4-1-字典树和状态机
+
+
+# Stealing ideas from NixOS
+    [TODO] not found github
+    **jai** for sowon2:
+    - [Origin] ini parser
+    - [Add] stb_c_lexer
+    - [Add] parse liked-json-file
+    - hot_roading: **FileWatcher API in Jai**
+
+
+
+# What Language was before C
+    use crust impl B Compiler
+    https://github.com/tsoding/b.git or https://github.com/bext-lang/b.git
+    - stb_c_lexer
+    - extern decl func, auto var, fasm
+
+
+# Immediate JSON Parsing in C
+    [TODO] not found github
+    Immediate vs  Retained
+    - https://github.com/tsoding/jim.git
+      **Immediate Mode** JSON **Serialization** Library in C. Similar to imgui but for generating JSON.
+    - https://github.com/tsoding/tzozen.git
+      **Retained** JSON **Parsing**
+

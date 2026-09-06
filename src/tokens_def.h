@@ -9,8 +9,12 @@
 #include "common/StringView.h"
 
 
-// Single Comment str
-constexpr const char* SlComment = "//";
+// Single Comment str and Multi Comment Left+Right str
+constexpr StringView SlComment = "//";
+constexpr StringView LeftMlComment = "/*";
+constexpr StringView RightMlComment = "*/";
+constexpr char MlCommentCharSet_AND_LF[] = "*/\n";
+static_assert(MlCommentCharSet_AND_LF[std::size(MlCommentCharSet_AND_LF)-2] == '\n');
 
 // XX(Name)
 #define KEYWORD_EXPAND(XX)\
@@ -25,10 +29,15 @@ constexpr const char* SlComment = "//";
   XX(struct),XX(var),\
   XX(const), XX(fn),\
   XX(if),XX(else),\
-  XX(while),\
+  XX(while),XX(for),\
   XX(break),XX(continue),\
   XX(return)
 
+#define KEYWORD_ARR_X(Name) #Name
+inline const char* kKeywords_CStr[] = {
+  KEYWORD_EXPAND(KEYWORD_ARR_X)
+};
+#undef KEYWORD_ARR_X
 
 
 // one-char运算符
@@ -77,23 +86,27 @@ constexpr const char* SlComment = "//";
   XX(RShift      ,">>"),\
   XX(RArrow      ,"->")
 
-// Tip: README: must define 2CHAR_OPS first，because the match now is use the 'for' ("Lexer::get_token() for punct_str")
+// Tip: README: must define 2CHAR_OPS or 3Char first，because the lexer now is  using the 'for' to match puncts
+
 // XX(Name,Str)
 #define PUNCT_EXPAND(X_MACRO)\
   PUNCT_2CHAR_OPS_EXPAND(X_MACRO),\
   PUNCT_1CHAR_OPS_EXPAND(X_MACRO)
 
 
+#define PUNCT_ARR_X(Name,Str) Str
+inline const char* kPuncts_CStr[] = {
+  PUNCT_EXPAND(PUNCT_ARR_X)
+};
+#undef PUNCT_ARR_X
 
 
 #define KEYWORD_ENUM_X(Name) ETK_##Name
 #define PUNCT_ENUM_X(Name,Str) ETK_##Name
-
 // TODO: which solution better ?: 使用 ascii(0-127)值 表示 单字符TOKEN,其他类型TOKEN从128开始??
 enum ETokenType
 {
-  ETK_None,
-  ETK_Error = ETK_None,
+  ETK_Error,
   ETK_EOF,
   ETK_Whitespace,
   ETK_Comment,
@@ -112,70 +125,49 @@ enum ETokenType
   _etk_punct_start = ETK_PUNCT_START - 1,
   PUNCT_EXPAND(PUNCT_ENUM_X),
   ETK_PUNCT_END,
-  ETK_COUNT = ETK_PUNCT_END
+  ETK_COUNT = ETK_PUNCT_END,
+  ETK_None = ETK_COUNT
 };
+static_assert(ETK_KEYWORD_END - ETK_KEYWORD_START == std::size(kKeywords_CStr));
+static_assert(ETK_PUNCT_END - ETK_PUNCT_START == std::size(kPuncts_CStr));
 
 #undef KEYWORD_ENUM_X
 #undef PUNCT_ENUM_X
 
+
+
 #define STRINGFY(x) #x
-#define ETOKEN_KEYWORD_NAME(Name) STRINGFY(ETK_##Name)
-#define ETOKEN_PUNCT_NAME(Name,Str) STRINGFY(ETK_##Name)
+#define ETOKEN_KEYWORD_NAME_X(Name) STRINGFY(ETK_##Name)
+#define ETOKEN_PUNCT_NAME_X(Name,Str) STRINGFY(ETK_##Name)
+[[nodiscard]]
+inline StringView ETokenType_to_Str(ETokenType type)
+{
+  static const char* kETokenTypeName[] = {
+    /*[ETK_None] =*/ "ETK_Error",
+    /*[ETK_EOF] =*/ "ETK_EOF",
+    /*[ETK_Whitespace] =*/ "ETK_Whitespace",
+    /*[ETK_Comment] =*/ "ETK_Comment",
+    /*[ETK_Identifier] =*/ "ETK_Identifier",
+    /*[ETK_IntLit] =*/ "ETK_IntLit",
+    /*[ETK_FlLit] =*/ "ETK_FlLit",
+    /*[ETK_CharLit]*/ "ETK_CharLit",
+    /*[ETK_StrLit] =*/ "ETK_StrLit",
+    KEYWORD_EXPAND(ETOKEN_KEYWORD_NAME_X),
+    PUNCT_EXPAND(ETOKEN_PUNCT_NAME_X),
+    "ETK_None"
+  };
+  static_assert(ETK_COUNT+1 == std::size(kETokenTypeName));
 
-inline const char* kETokenTypeName[] = {
-  /*[ETK_None] =*/ "ETK_None",
-  /*[ETK_EOF] =*/ "ETK_EOF",
-  /*[ETK_Whitespace] =*/ "ETK_Whitespace",
-  /*[ETK_Comment] =*/ "ETK_Comment",
-  /*[ETK_Identifier] =*/ "ETK_Identifier",
-  /*[ETK_IntLit] =*/ "ETK_IntLit",
-  /*[ETK_FlLit] =*/ "ETK_FlLit",
-  /*[ETK_CharLit]*/ "ETK_CharLit",
-  /*[ETK_StrLit] =*/ "ETK_StrLit",
-  KEYWORD_EXPAND(ETOKEN_KEYWORD_NAME),
-  PUNCT_EXPAND(ETOKEN_PUNCT_NAME)
-};
-
-static_assert(ETK_COUNT == sizeof(kETokenTypeName) / sizeof(const char*));
-
+  return kETokenTypeName[type];
+}
 #undef STRINGFY
-#undef ETOKEN_KEYWORD_NAME
-#undef ETOKEN_PUNCT_NAME
+#undef ETOKEN_KEYWORD_NAME_X
+#undef ETOKEN_PUNCT_NAME_X
 
-
-#define KEYWORD_ARR_X(Name) #Name
-// TODO: better? use gpref to generate the keyword set(perfect hash)
-//    or use trie-tree to match
-inline const char* kEStr_Keywords[] = {
-  KEYWORD_EXPAND(KEYWORD_ARR_X)
-};
-static_assert(ETK_KEYWORD_END - ETK_KEYWORD_START == sizeof(kEStr_Keywords)/sizeof(const char*));
-#undef KEYWORD_ARR_X
-
-
-#define PUNCT_ARR_X(Name,Str) Str
-inline const char* kEStr_Puncts[] = {
-  PUNCT_EXPAND(PUNCT_ARR_X)
-};
-static_assert(ETK_PUNCT_END - ETK_PUNCT_START == sizeof(kEStr_Puncts)/sizeof(const char*));
-#undef PUNCT_ARR_X
-
-inline const char* EStrKeyword(ETokenType type) {
-  HAI_ASSERT(ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END && "not keyword type in ETokenType");
-
-  return kEStr_Keywords[type - ETK_KEYWORD_START];
-}
-
-inline const char* EStrPunct(ETokenType type) {
-  HAI_ASSERT(ETK_PUNCT_START <= type && type < ETK_PUNCT_END && "not punct type in ETokenType");
-
-  return kEStr_Puncts[type - ETK_PUNCT_START];
-}
-
-
+// inline ETokenType Tag_Str_to_Enum(std::string_view sv);
 
 #define KEYWORD_MAP_X(Name) {#Name,ETK_##Name}
-inline ETokenType KeywordId(std::string_view sv)
+inline ETokenType KeywordStr_to_ETokenType(std::string_view sv)
 {
   static phmap::flat_hash_map<std::string_view,ETokenType> keyword_map = {
     KEYWORD_EXPAND(KEYWORD_MAP_X)
@@ -186,17 +178,34 @@ inline ETokenType KeywordId(std::string_view sv)
   {
     return iter->second;
   }
-  return ETK_None;
+  return ETK_Error;
 }
 #undef KEYWORD_MAP_X
-
-
 
 
 #undef PUNCT_1CHAR_OPS_EXPAND
 #undef PUNCT_2CHAR_OPS_EXPAND
 #undef PUNCT_EXPAND
 #undef KEYWORD_EXPAND
+
+inline const char* GetKeywordCStr(ETokenType type) {
+  if (ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END)
+  {
+    return kKeywords_CStr[type - ETK_KEYWORD_START];
+  }
+  HAI_ASSERT(false && "type is not keyword type in ETokenType");
+  return "";
+
+}
+
+inline const char* GetPunctCStr(ETokenType type) {
+  if (ETK_PUNCT_START <= type && type < ETK_PUNCT_END)
+  {
+    return kPuncts_CStr[type - ETK_PUNCT_START];
+  }
+  HAI_ASSERT(false && "type is not punct type in ETokenType");
+  return "";
+}
 
 
 
@@ -220,7 +229,8 @@ struct TokenLoc
 
   uint32_t column(const char* text_start) const
   {
-    HAI_ASSERT(text_start >= line_start);
+    HAI_ASSERT(line_start!=nullptr && text_start!=nullptr
+      && line_start <=  text_start);
     return static_cast<uint32_t>(text_start - line_start);
   }
 };
@@ -242,57 +252,33 @@ struct Token
   {
     switch (type)
     {
-      case ETK_None: return "<Unknown>";
+      case ETK_Error: return "<Error>";
       case ETK_EOF: return "<EOF>";
       case ETK_Whitespace: return "<WhiterSpace>";
-      case ETK_Comment: return "<Comment>";
+      case ETK_None:       // fallthrough
+      case ETK_Comment:    // fallthrough
       case ETK_Identifier: // fallthrough
       case ETK_IntLit:     // fallthrough
       case ETK_FlLit:      // fallthrough
       case ETK_CharLit:    // fallthrough
-      case ETK_StrLit:
+      case ETK_StrLit:     // fallthrough
         return text;
       default: break;
     }
     if (ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END)
     {
-      return EStrKeyword(type);
+      return GetKeywordCStr(type);
     }
     if (ETK_PUNCT_START <= type && type < ETK_PUNCT_END)
     {
-      return EStrPunct(type);
+      return GetPunctCStr(type);
     }
-    HAI_ASSERT(false);
-    return "<Unknown>";
+    HAI_UNREACHABLE();
+    return "";
   }
 };
 
-[[nodiscard]] inline StringView get_type_tag_str(ETokenType type)
-{
-  switch (type)
-  {
-  case ETK_None: return "<Unknown>";
-  case ETK_EOF: return "<EOF>";
-  case ETK_Whitespace: return "<WhiterSpace>";
-  case ETK_Comment: return "<Comment>";
-  case ETK_Identifier: return "<Identifier>";
-  case ETK_IntLit: return "<IntLit>";
-  case ETK_FlLit: return "<FlLit>";
-  case ETK_CharLit: return "<CharLit>";
-  case ETK_StrLit: return "<StrLit>";
-  default: break;
-  }
-  if (ETK_KEYWORD_START <= type && type < ETK_KEYWORD_END)
-  {
-    return "<Keyword>";
-  }
-  if (ETK_PUNCT_START <= type && type < ETK_PUNCT_END)
-  {
-    return "<Punct>";
-  }
-  HAI_ASSERT(false);
-  return "<Unknown>";
-}
+
 
 
 

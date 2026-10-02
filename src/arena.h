@@ -1,81 +1,49 @@
-#ifndef HAILANG_ARENA_H
-#define HAILANG_ARENA_H
+/**
+ * the C++ Wrapper of tsoding-arena.h;
+ *  internal/arena: the custom setting for tsoding-arena
+ */
 #pragma once
 
-#include <cstdint>
-
 #include "common/Assert.h"
+#include "common/StringView.h"
 
-// TODO: Arena
-#ifndef NDEBUG
+#include "internal/arena.h"
 
-#define G_WATCHER(name) inline size_t g_##name##_allocted_size = 0
-
-#define G_OPERATOR_NEW_WATCHER_BY(name) \
-void* operator new(size_t size){\
-  g_##name##_allocted_size += size;\
-  return ::operator new(size);\
-}\
-void operator delete(void* ptr,size_t size) {\
-  g_##name##_allocted_size -= size;\
-  return ::operator delete(ptr);\
-}
-
-#define G_WATCHER_AOP(name,code) do {\
-  LOG_INFO("total alloc {} bytes",g_##name##_allocted_size);\
-  {code}\
-  if( g_##name##_allocted_size != 0){\
-    LOG_INFO("allocator leak {} bytes",g_##name##_allocted_size);\
-  }\
-}while (0)
-
-
-#endif
+using Arena_Mark = details::Arena_Mark;
 
 struct Arena
 {
-  size_t size_ = 0;
-  size_t cap_ = 0;
-  uint8_t* pool_ = nullptr;
+  details::Arena impl;
 
-  bool init(uint8_t* resource,size_t cap)
+  ~Arena();
+
+  void *alloc(size_t size_bytes);
+
+  template <typename T>
+  T* alloc(const size_t count)
   {
-    pool_ = resource;
-    cap_ = cap;
-    return true;
-  }
-  size_t save_point() const
-  {
-    return size_;
-  }
-  void rewind(const size_t save_p)
-  {
-    size_ = save_p;
+    return static_cast<T*>(this->alloc(sizeof(T) * count));
   }
 
-  void* alloc(const size_t size)
-  {
-    HAI_ASSERT(size != 0 && "Arena can't alloc 0 ");
-    HAI_ASSERT(size_ + size <= cap_ && "Arena empty resource");
+  void *realloc( void *oldptr, size_t oldsz, size_t newsz);
 
-    void* ptr = pool_ + size_;
-    size_ += size;
-    return ptr;
-  }
+  char *strdup(StringView sv);
 
-  template<typename T>
-  T* alloc_as(const size_t cnt = 1)
-  {
-    return static_cast<T*>(this->alloc(sizeof(T) * cnt));
-  }
+  void *memdup(const void *data, size_t size);
 
-  // only call when the pool is on heap(by new)
-  void free()
-  {
-    delete pool_;
-  }
+#ifndef ARENA_NOSTDIO
+  char *sprintf(const char *format, ...);
+#endif // ARENA_NOSTDIO
+
+  Arena_Mark snapshot();
+  void reset();
+  void rewind(Arena_Mark m);
+  void free();
+  void trim();
 };
 
 
 
-#endif //HAILANG_ARENA_H
+
+
+

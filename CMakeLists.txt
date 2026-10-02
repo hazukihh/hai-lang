@@ -10,7 +10,7 @@ add_executable(haic)
 
 target_include_directories(haic PRIVATE
     src
-    deps/
+    deps/debugbreak
     deps/spdlog/include
     deps/parallel-hashmap/include # flat_hash_map ...
 )
@@ -18,7 +18,8 @@ target_sources(haic PRIVATE
     src/common/Log.cpp
     src/common/StringView.cpp
 
-    src/arena.h
+    src/internal/arena.cpp
+    src/arena.cpp
     src/tokens_def.h
     src/lexer.h
     src/lexer.cpp

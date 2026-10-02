@@ -1,0 +1,80 @@
+var c01 = "Hello\nWorld";              // 换行 LF (0x0A)
+var c02 = "Hello\tWorld";              // 水平制表符 TAB (0x09)
+var c03 = "Hello\rWorld";              // 回车 CR (0x0D)
+var c04 = "Hello\aWorld";              // 响铃 BEL (0x07)
+var c05 = "Hello\bWorld";              // 退格 BS (0x08)
+var c06 = "Hello\fWorld";              // 换页 FF (0x0C)
+var c07 = "Hello\vWorld";              // 垂直制表符 VT (0x0B)
+var c08 = "Hello\eWorld";              // ESC (0x1B)，GNU 扩展
+var c09 = "Hello\0World";              // 空字符 NUL (0x00)
+var c10 = "He said \"Hi\"";            // 双引号
+var c11 = "It\'s ok";                  // 单引号
+var c12 = "C:\\path\\to\\file";        // 反斜杠
+
+var c13e = "What\?";                    // 问号,now error \? 非法转义
+
+var c14 = "\x41";                      // 'A'
+var c15 = "\x00";                      // NUL
+var c16 = "\xff";                      // 0xFF
+var c17 = "\x0A";                      // 换行
+var c18 = "\x41\x42\x43";              // "ABC"
+var c19 = "A\x42C";                    // "ABC"
+
+var c20 = "";                          // 空字符串
+var c21 = "\n\t\r\a\b\f\v";            // 全是转义
+var c22 = "\\n";                       // 字面量 \n（两个字符：\ 和 n）
+
+var c23 = "\\\\";                      // 字面量 \\（两个反斜杠）
+var c24 = "\"\\\"";                    // 字面量 "\"
+var c25 = "abc\x00def";                // 中间含 NUL
+var c26 = "中文 English 123 !@#";      // 普通 Unicode 源码
+var c27 = "line1\nline2\nline3";       // 多行转义
+var c28 = "\x41B";                     // \x41 = 'A'，再接 'B' → "AB"
+var c29e = "\?\?";                      // 两个问号，非 trigraph. now error \? 非法转义
+
+var c30 = "Hello" " " "World";         // 仅当语言支持相邻拼接时合法
+
+var e01 = "\1";                        // ❌ 不支持八进制（1 位）
+var e02 = "\12";                       // ❌ 不支持八进制（2 位）
+var e03 = "\123";                      // ❌ 不支持八进制（3 位）
+var e04 = "\777";                      // ❌ 不支持八进制（3 位）
+
+var e05 = "\x4";                       // ❌ 只有 1 位 hex
+var e06 = "\x";                        // ❌ 没有 hex 数字
+var e07 = "\x4G";                      // ❌ G 不是 hex
+var e08 = "\xGG";                      // ❌ 非法 hex
+
+var e09 = "\q";                        // ❌ 未知转义
+var e10 = "\z";                        // ❌ 未知转义
+var e11 = "\8";                        // ❌ 未知转义
+var e12 = "\ ";                        // ❌ 反斜杠后接空格
+var e13 = "\`";                        // ❌ 未知转义（反引号）
+
+var e14 = "Hello;                      // ❌ 未闭合（遇 ; 前无 "）
+var e15 = "\";                         // ❌ 反斜杠转义了引号，字符串未闭合
+var e16 = "abc\                        // ❌ 行尾反斜杠续行（你语言不支持，报错）
+def";
+
+var e17 = "line1
+line2";                                // ❌ 字面量换行（不支持多行 "..."）
+
+var e18 = "abc\";                      // 未闭合
+var e19 = "abc\x";                     // ❌ \x 后没有 hex
+var e20 = "abc\x4";                    // ❌ 不足 2 位
+
+var e21 = "\u0041";                    // ❌ 暂不支持
+var e22 = "\u{1F600}";                 // ❌ 暂不支持
+var e23 = "\U0001F600";                // ❌ 暂不支持
+
+var e25 = r"abc";                      // ❌ raw string 暂未实现
+var e26 = m"abc";                      // ❌ 多行字符串暂未实现
+
+var b01c = "\x41B";                     // → "AB"（\x41='A' + 'B'）
+var b02c = "\x123";                     // → \x12 + '3'（固定 2 位规则）→ 合法
+var b03c = "\0abc";                     // → NUL 后接 abc（是否截断取决于实现）
+var b04c = "\\x41";                     // → 字面量 \x41（4 字符），不是 'A'
+var b05c = "\\\\n";                     // → 字面量 \\n（3 字符）
+var b06c = "\e[31mRed\e[0m";            // → ANSI 颜色转义（GNU \e）
+var b07e = "\?\?=";                     // → 两个问号 + =（若实现 trigraph 需注意）
+var b08c = "\x00\x41\xff";              // → 含 NUL 的多字节, 不以\0中断
+var b09c = "abc\x00def";                // → 中间 NUL，长度是否含 NUL? 长度含NUL,不以\0中断

@@ -25,12 +25,8 @@ inline bool IsKeywordBaseType(ETokenType e)
   return ETK_s8 <= e && e <= ETK_void;
 }
 
-inline uint8_t g_buffer_typeinfo[1024*4];
-inline Arena g_arena_typeinfo {
-  .size_ = 0,
-  .cap_ = sizeof(g_buffer_typeinfo),
-  .pool_ = g_buffer_typeinfo
-};
+
+inline Arena g_arena_typeinfo;
 
 
 struct TypeInfo;
@@ -114,13 +110,17 @@ struct TypeInfo
 
   static TypeInfo* Create()
   {
-    return g_arena_typeinfo.alloc_as<TypeInfo>();
+
+    return g_arena_typeinfo.alloc<TypeInfo>(1);
   }
 };
 
 inline TypeInfo* parse_type(Lexer* lexer)
 {
   TypeInfo* info = TypeInfo::Create();
+
+  // TODO: how to re-use the same TypeInfo? Not Create a new one;
+  //    But, now the TypeInfo has TypeInfo.tok
 
   auto t = lexer->next();
   switch (t.type){
@@ -197,7 +197,7 @@ inline TypeInfo* parse_type(Lexer* lexer)
     ParamInfo* params = nullptr;
     if (!temp_arr.empty())
     {
-      params = g_arena_typeinfo.alloc_as<ParamInfo>( temp_arr.size());
+      params = g_arena_typeinfo.alloc<ParamInfo>( temp_arr.size());
       for (int i=0;i<temp_arr.size();++i)
       {
         params[i] = std::move(temp_arr[i]);

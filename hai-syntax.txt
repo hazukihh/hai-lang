@@ -39,11 +39,142 @@ return ;
 }
 
 <fn_name>();
+
+// #function and function pointer
 ```c
 int (*p1)(int, int) = add;   // 函数名可以隐式转化为常量函数指针 "*const fn(int,int)->int"
 int (*p2)(int, int) = &add;  // 显式取地址
-
 ```
+// #array and pointer and array_view
+
+/// ##C/C++
+int a[N];
+int *a;
+/// ##jai
+https://github.com/Jai-Community/Jai-Community-Library/wiki/Getting-Started#variables-constants-and-types
+
+/// ##my?
+
+
+//是Array_View的语法糖 还是 *int的数组语义分离
+//数组语义能否 a.* ?  还是只能使用 a[i]
+var a1: []int;
+
+
+// *int的单元素语义分离 => only a2.*
+var a2: *int;
+
+// 类型信息带有N(可编译期计算a3.count/len/size)，但是本身是[]int 还是 Array_View 即可转化为 []int
+// ? : 有需要 表示为数组的指针，但同时不需要数组长度的场景吗？ => 怎么说 [N]T []T 表示为Array_View 的语法糖 其实很合理？
+var a3: [N]int;
+
+struct Array_view($T) {
+  // ? : count 是用 s64 还是 u64 / usize(size_t) / ssize
+  s64 count;
+  //u64 count;
+  T *data;
+  //u8 *data;
+}
+
+// ### 索引/数组长度 i size() / count 是用 s64 还是 u64 / usize(size_t) / ssize
+c/c++ 中的 using Index = ptrdiff_t  + size_t / STL_Container::size() -> size_t / std::ssize(container) -> ssize_t or Index / 
+
+
+// ### intptr_t 与 ptrdiff_t 与 uintptr_t
+```cpp
+#include <iostream>
+#include <cstdint>  // intptr_t
+#include <cstddef>  // ptrdiff_t
+
+int main() {
+    int arr[10] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+    int* p1 = &arr[2];  // 指向 arr[2]
+    int* p2 = &arr[7];  // 指向 arr[7]
+
+    // ========== 场景1：两个指针直接相减 ==========
+    // 结果类型是 ptrdiff_t，表示元素个数差
+    auto ptr_diff = p2 - p1;
+    std::cout << "=== 指针减指针 ===" << std::endl;
+    std::cout << "p2 - p1 = " << ptr_diff << std::endl;
+    std::cout << "结果类型: ptrdiff_t" << std::endl;
+    std::cout << "含义: 两个指针之间相差 " << ptr_diff << " 个 int 元素" << std::endl;
+    std::cout << std::endl;
+
+    // ========== 场景2：先转成 intptr_t 再相减 ==========
+    // 结果类型是 intptr_t，表示字节差
+    auto int_diff = (intptr_t)p2 - (intptr_t)p1;
+    std::cout << "=== intptr_t 减 intptr_t ===" << std::endl;
+    std::cout << "(intptr_t)p2 - (intptr_t)p1 = " << int_diff << std::endl;
+    std::cout << "结果类型: intptr_t" << std::endl;
+    std::cout << "含义: 两个地址之间相差 " << int_diff << " 个字节" << std::endl;
+    std::cout << std::endl;
+
+    // ========== 验证关系 ==========
+    std::cout << "=== 验证 ===" << std::endl;
+    std::cout << "sizeof(int) = " << sizeof(int) << " 字节" << std::endl;
+    std::cout << "元素差 × sizeof(int) = " << ptr_diff << " × " << sizeof(int)
+              << " = " << ptr_diff * (intptr_t)sizeof(int) << " 字节" << std::endl;
+    std::cout << "与 intptr_t 差值是否相等? "
+              << (ptr_diff * (intptr_t)sizeof(int) == int_diff ? "是" : "否") << std::endl;
+    std::cout << std::endl;
+
+    // ========== 打印类型大小 ==========
+    std::cout << "=== 类型大小 ===" << std::endl;
+    std::cout << "sizeof(ptrdiff_t) = " << sizeof(ptrdiff_t) << std::endl;
+    std::cout << "sizeof(intptr_t)  = " << sizeof(intptr_t) << std::endl;
+    std::cout << "sizeof(int*)      = " << sizeof(int*) << std::endl;
+
+    return 0;
+}
+/***Output
+=== 指针减指针 ===
+p2 - p1 = 5
+结果类型: ptrdiff_t
+含义: 两个指针之间相差 5 个 int 元素
+
+=== intptr_t 减 intptr_t ===
+(intptr_t)p2 - (intptr_t)p1 = 20
+结果类型: intptr_t
+含义: 两个地址之间相差 20 个字节
+
+=== 验证 ===
+sizeof(int) = 4 字节
+元素差 × sizeof(int) = 5 × 4 = 20 字节
+与 intptr_t 差值是否相等? 是
+
+=== 类型大小 ===
+sizeof(ptrdiff_t) = 8
+sizeof(intptr_t)  = 8
+sizeof(int*)      = 8
+***/
+```
+
+
+// # n-for  and break continue; like jai
+mode ::=  ":<" ":*" ":<custom>"(可以重载实现？jai是通过宏#expand扩展)
+
+for [":"<mode>] [<label_name> ":="]  <condExpr> {
+  for xx {
+    break;
+    break label_name;
+    continue;
+    continue label_name;
+  }
+}
+
+# 编译期计算，通常是需要内置一个解释器。
+#Jai内置一个bytecode解释器。jai会将AST编译到bytecode,之后才编译到(llvm)IR
+
+#虚拟机 栈式 vs 寄存器式
+栈式容易实现. JVM, .NET CLR, javascript 都是,但是现代化优化会应用JIT.
+.NET 也支持 Native AOT
+寄存器式: Lua 5.0+
+
+## 栈： 调用栈，操作数栈
+无论栈式还是寄存器式虚拟机都有调用栈
+栈式有一个额外的操作数栈
+
 
 defer ?  __deinit__ ?
 

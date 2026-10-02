@@ -2,7 +2,17 @@
     https://ieralt.github.io/craftinginterpreters_zh/16.按需扫描.html#_16-4-1-字典树和状态机
 
 
-# Stealing ideas from NixOS
+
+
+# Tsoding
+
+## 数学伪随机不重复歌单播放
+
+## command args parsing
+    - https://github.com/tsoding/flag.h
+    - jai std lib for args parsing
+
+## Stealing ideas from NixOS
     [TODO] not found github
     **jai** for sowon2:
     - [Origin] ini parser
@@ -12,14 +22,14 @@
 
 
 
-# What Language was before C
+## What Language was before C
     use crust impl B Compiler
     https://github.com/tsoding/b.git or https://github.com/bext-lang/b.git
     - stb_c_lexer
     - extern decl func, auto var, fasm
 
 
-# Immediate JSON Parsing in C
+## Immediate JSON Parsing in C
     [TODO] not found github
     Immediate vs  Retained
     - https://github.com/tsoding/jim.git

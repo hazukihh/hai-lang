@@ -63,10 +63,10 @@ bool Lexer::init(std::string_view src)
   return true;
 }
 
-void Lexer::error_at(const Token& t, StringView msg)
+void Lexer::error_at(const Token& t, StringView msg,bool panic)
 {
   if (this->isPanic) return;
-  isPanic = true;
+  this->isPanic = panic;
   this->isError = true;
 
   auto column = t.loc.column(t.text.data());
@@ -82,9 +82,9 @@ void Lexer::error_at(const Token& t, StringView msg)
 
 }
 
-void Lexer::error_at(const Token& t, ETokenType expected)
+void Lexer::error_at(const Token& t, ETokenType expected,bool panic)
 {
-  error_at(t,fmt::format("expected \"{}\"",ETokenType_to_Str(expected)));
+  error_at(t,fmt::format("expected \"{}\"",ETokenType_to_Str(expected)),panic);
 }
 
 void Lexer::sync(ETokenType expected)
@@ -93,18 +93,26 @@ void Lexer::sync(ETokenType expected)
   LOG_DEBUG("[Parser] panic mode sync");
   this->isPanic = false;
 
+  this->enable_lexer_report_error = false;
   auto t = this->peek();
   Token range[2];
   uint8_t cnt = 0;
   for (bool loop=true;loop; t= this->peek())
   {
+    // if (expected != ETK_Error && t.type == expected) {
+    //   // not consume the token
+    //   loop = false;
+    //   break;
+    // }
     switch (t.type){
     case ETK_EOF: case ETK_RBrace:
     case ETK_if: case ETK_while: case ETK_return:
     case ETK_var: case ETK_fn: case ETK_struct:
+      // not consume the token
       loop = false;
       break;
     case ETK_Semi:
+      // consume the token
       loop = false;
       if (cnt == 0)
       {
@@ -117,6 +125,7 @@ void Lexer::sync(ETokenType expected)
 
       break;
     default:
+      // consume the token
       if (cnt == 0)
       {
         range[0] = this->next();
@@ -131,9 +140,10 @@ void Lexer::sync(ETokenType expected)
   if (cnt != 0)
   {
     range[0].text = StringView{range[0].text.data(),range[1].text.data() + range[1].text.size()};
-    this->error_at(range[0],"Ignore Codes");
-    this->isPanic =false;
+    LOG_ERROR("Ignore Codes:\n{}",range[0].text);
   }
+  this->enable_lexer_report_error = true;
+  LOG_DEBUG("[Parser] panic mode sync ----end");
 }
 
 Token Lexer::get_token()
@@ -290,6 +300,7 @@ Token Lexer::get_token()
 
     while (pos < input_.size())
     {
+      // TODO: ? why unsigned char, not just char ??
       const unsigned char c = input_[pos];
       if (c == '"')
       {
@@ -298,6 +309,13 @@ Token Lexer::get_token()
       }
       /// Feature: don't support Multi-Line-String
       if (c == '\n') break;
+
+      // FIX: test "\"..." and "\"
+      if (c == '\\')
+      {
+        pos += 2;
+        continue;
+      }
 
       ++pos;
     }
@@ -319,24 +337,29 @@ Token Lexer::get_token()
       sv = sv_slice(input_,0,sv_end);
       input_ = sv_slice(input_,pos);
 
-      error_at(Token{
-        .type = ETK_StrLit,
-        .text = sv,
-        .loc = {
-          .line = row_,
-          .line_start = base_
-        }
-      },"StringLiteral lack Right-'\"'");
-      this->isPanic = false;
+      if (this->enable_lexer_report_error)
+      {
+        error_at(
+          Token {
+          .type = ETK_StrLit,
+          .text = sv,
+          .loc = {
+            .line = row_,
+            .line_start = base_}
+          },
+          "StringLiteral lack Right-'\"'"
+          ,false
+        );
+      }
 
     }
     return Token{
-      .type = ETK_StrLit,
+      .type = is_closed ? ETK_StrLit : ETK_Error,
       .text = sv,
       .loc = {
         .line = row_,
         .line_start = base_
-      }
+      },
     };
   }
 
@@ -357,6 +380,13 @@ Token Lexer::get_token()
       /// Feature: don't support Multi-Line-String
       if (c == '\n') break;
 
+      // FIX: test '\'' and '\'
+      if (c == '\\')
+      {
+        pos += 2;
+        continue;
+      }
+
       ++pos;
     }
 
@@ -374,27 +404,33 @@ Token Lexer::get_token()
       sv = sv_slice(input_, 0, sv_end );
       input_ = sv_slice(input_, pos);
 
-      error_at(Token{
-        .type = ETK_CharLit,
-         .text = sv,
-         .loc = {
-           .line = row_,
-           .line_start = base_
-         }
-      }, "CharLiteral lack Right-'\''");
-      this->isPanic = false;
+      if (this->enable_lexer_report_error)
+      {
+        error_at(Token{
+          .type = ETK_CharLit,
+          .text = sv,
+          .loc = {
+             .line = row_,
+             .line_start = base_
+           },
+          },
+          "CharLiteral lack Right-'\''"
+          ,false
+        );
+        
+      }
     }
 
 
-    /// TODO: Similar to StringLit. Should be error when the char len > 1 ? or delay ?
-    ///   Delay to parser
+
+    ///tips: when the actully_char_len != 1 , Delay to Parser-Step
     return Token{
-      .type = ETK_CharLit,
+      .type = is_closed ? ETK_CharLit : ETK_Error,
       .text = sv,
       .loc = {
         .line = row_,
         .line_start = base_
-      }
+      },
     };
   }
 
@@ -448,9 +484,9 @@ Token Lexer::get_token()
       .line_start = base_
     }
   };
-  error_at(unknown, "Illegal character encountered");
-  this->isPanic = false;
-
+  // TODO:!! 连续报告非法字符,不要一个个报告
+  error_at(unknown, "Illegal character encountered",false);
+  
   input_ = sv_slice(input_,word_len);
   return unknown;
 }

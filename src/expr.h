@@ -9,24 +9,9 @@
 #include "type.h"
 #include "common/Log.h"
 
-/**
- * expr_version_1 : unique_ptr + default new
- * expr_version_2 : raw_ptr + arena
- */
-#define EXPR_VERSION 2
 
-#if EXPR_VERSION == 2
-inline uint8_t g_buffer[1024*4];
-inline Arena g_arena {
-  .size_ = 0,
-  .cap_ = sizeof(g_buffer),
-  .pool_ = g_buffer
-};
-#endif
+inline Arena g_arena;
 
-#ifndef NDEBUG
-G_WATCHER(expr);
-#endif
 
 struct Expr;
 
@@ -66,11 +51,14 @@ struct FloatLitExpr
 struct CharLitExpr
 {
   uint8_t val = 0;
-
+  uint32_t codepoint = 0; // unicode; max: 0x10FFFF (1,114,111)
 };
 struct StrLitExpr
 {
-  const uint8_t* val = nullptr;
+  // const char* val = nullptr;
+
+  StringView val;
+
   // suffix?
 };
 
@@ -152,6 +140,8 @@ struct Expr
   Token atom {.type = ETokenType::ETK_None};
 
   ExprData data;
+  // TODO:
+  bool is_error = false;
 
 };
 

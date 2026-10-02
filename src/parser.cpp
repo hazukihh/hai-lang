@@ -16,8 +16,8 @@ void print(const Stmt* self,int depth /* = 0*/)
   {
     return std::string(t.to_str());
   };
-  // MATCH(this->data,
-    std::visit(Overloaded {
+  MATCH(self->data,
+  // std::visit(Overloaded {
       [get_value,depth](const Expr_Stmt& stmt){
         LOG_INFO("{:{}}--Expr_stmt--","",depth * 4);
         expr_print(stmt.expr,get_value,depth);
@@ -98,8 +98,8 @@ void print(const Stmt* self,int depth /* = 0*/)
       {
         LOG_INFO("INVALID_STMT");
       }
-    }
-    ,self->data);
+    // },self->data
+    );
 }
 
 void print(const Stmt& self,int depth)
@@ -160,9 +160,9 @@ static Stmt::Ptr parse_fn_decl_stmt(Lexer *lexer);
 //  Impl
 // =======
 
-#define ARENA_NEW(type) ::new (static_cast<type*>(g_arena.alloc(sizeof(type)))) type
+#define ARENA_NEW(type) ::new (g_arena.alloc<type>(1)) type
 
-#define ARENA_NEW_ARR(type,cnt) ::new (static_cast<type*>(g_arena.alloc(sizeof(type) * cnt))) type[cnt]
+#define ARENA_NEW_ARR(type,cnt) ::new (g_arena.alloc<type>(cnt)) type[cnt]
 
 /**
  * expr_stmt / null_stmt ::= expr? ";"
@@ -355,7 +355,7 @@ Stmt::Ptr parse_fn_decl_stmt(Lexer* lexer)
   ParamInfo* params = nullptr;
   if (!temp_arr.empty())
   {
-    params = g_arena.alloc_as<ParamInfo>(temp_arr.size());
+    params = g_arena.alloc<ParamInfo>(temp_arr.size());
     for (int i=0;i<temp_arr.size();++i)
     {
       params[i] = std::move(temp_arr[i]);
@@ -366,8 +366,17 @@ Stmt::Ptr parse_fn_decl_stmt(Lexer* lexer)
   result.type->func.params_cnt = temp_arr.size();
   result.type->func.params = params;
 
-  lexer->expect(ETK_RArrow);
-  result.type->func.ret_type = parse_type(lexer);
+  if (lexer->peek().type == ETK_RArrow)
+  {
+    lexer->consume();
+    result.type->func.ret_type = parse_type(lexer);
+  }
+  else
+  {
+    result.type->func.ret_type = parse_type(lexer);
+  }
+
+
 
 
   result.body = parse_block_stmt(lexer);

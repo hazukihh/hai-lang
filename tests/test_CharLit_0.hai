@@ -1,0 +1,94 @@
+// ========== 正确用例 ==========
+var e34 = 'a'b';              // ERR: 单引号提前结束
+// 普通单字符
+var c01 = 'a';
+var c02 = 'Z';
+var c03 = '0';
+var c04 = ' ';
+var c05 = '~';
+
+// 标准转义字符
+var c06 = '\a';
+var c07 = '\b';
+var c08 = '\f';
+var c09 = '\n';
+var c10 = '\r';
+var c11 = '\t';
+var c12 = '\v';
+var c13 = '\\';
+var c14 = '\'';
+var c15 = '\"';
+var c16e = '\?'; // error, don't support
+var c17 = '\e';
+var c18 = '\0';
+
+// \xhh：固定 2 位十六进制，大小写均可
+var c19 = '\x00';
+var c20 = '\x07';
+var c21 = '\x08';
+var c22 = '\x09';
+var c23 = '\x0A';
+var c24 = '\x0a';
+var c25 = '\x0B';
+var c26 = '\x0C';
+var c27 = '\x0D';
+var c28 = '\x1B';
+var c29 = '\x20';
+var c30 = '\x22';
+var c31 = '\x27';
+var c32 = '\x3F';
+var c33 = '\x5C';
+var c34 = '\x7F';
+var c35 = '\xAB';
+var c36 = '\xab';
+var c37 = '\xFF';
+
+// ========== 错误用例 ==========
+
+// 空字符字面量
+var e01 = '';                 // ERR: 空字面量
+
+// 多字符字面量
+var e02 = 'ab';               // ERR: 两个字符
+var e03 = 'abc';              // ERR: 多字符
+var e04 = '\n\n';             // ERR: 两个转义字符
+var e05 = '\x41\x42';         // ERR: 两个 \xhh
+var e06 = 'a\x42';            // ERR: 普通字符 + \xhh
+var e07 = '\x41a';            // ERR: \xhh + 普通字符
+var e08 = '\0a';              // ERR: \0 + 普通字符
+var e09 = '\00';              // ERR: \0 + '0'，或八进制不支持
+var e10 = '\01';              // ERR: \0 + '1'，或八进制不支持
+var e11 = '\x00\x00';         // ERR: 两个 null 字符
+
+// 不支持/非法八进制
+var e12 = '\1';               // ERR: 不支持 \ddd
+var e13 = '\12';              // ERR: 不支持 \ddd
+var e14 = '\123';             // ERR: 不支持 \ddd
+var e15 = '\8';               // ERR: 非法转义/非八进制
+var e16 = '\9';               // ERR: 非法转义/非八进制
+
+// 非法转义字符
+var e17 = '\z';               // ERR: 未知转义
+var e18 = '\m';               // ERR: 未知转义
+var e19 = '\c';               // ERR: 未知转义
+var e20 = '\u';               // ERR: 不支持 \u
+var e21 = '\U';               // ERR: 不支持 \U
+
+// \xhh 格式错误：必须恰好 2 位十六进制
+var e22 = '\x';               // ERR: 缺少十六进制数字
+var e23 = '\x1';              // ERR: 只有 1 位
+var e24 = '\x0';              // ERR: 只有 1 位
+var e25 = '\xG1';             // ERR: 第 1 位非十六进制
+var e26 = '\x1G';             // ERR: 第 2 位非十六进制
+var e27 = '\xGG';             // ERR: 非十六进制
+var e28 = '\x123';            // ERR: 固定 2 位，解析为 '\x12' + '3'，多字符
+var e29 = '\x000';            // ERR: 解析为 '\x00' + '0'，多字符
+var e30 = '\x0a0';            // ERR: 解析为 '\x0a' + '0'，多字符
+
+// 未闭合/引号错误
+var e31 = 'a;                 // ERR: 未闭合
+var e32 = '\';                // ERR: \' 转义了单引号，导致未闭合
+var e33 = ''';                // ERR: 引号配对错误
+var e34 = 'a'b';              // ERR: 单引号提前结束
+var e35 = '\\\';              // ERR: 未闭合
+var e36 = 'a\n;               // ERR: 未闭合

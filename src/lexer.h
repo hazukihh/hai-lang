@@ -5,11 +5,10 @@
 
 #include "tokens_def.h"
 
-// TODO: Option for Strict Mode
-constexpr auto FLAG_STRICT_MODE = true;
 
-void parser_error_at(const Token& t,StringView msg,bool panic = true);
-void parer_error_at(const Token& t,ETokenType expected,bool panic = true);
+
+// void parser_error_at(const Token& t,StringView msg,bool panic = true);
+// void parer_error_at(const Token& t,ETokenType expected,bool panic = true);
 
 struct Lexer
 {
@@ -24,7 +23,7 @@ struct Lexer
 #ifndef NDEBUG
   std::string_view src_;
 #endif
-
+  bool enable_lexer_report_error = true;
   //
   // Parser
   //
@@ -40,8 +39,8 @@ struct Lexer
 
   bool init(std::string_view src);
 
-  void error_at(const Token& t, StringView msg);
-  void error_at(const Token& t, ETokenType expected);
+  void error_at(const Token& t, StringView msg,bool panic = true);
+  void error_at(const Token& t, ETokenType expected,bool panic = true);
   void sync(ETokenType expected);
 
   [[nodiscard]] Token get_token();

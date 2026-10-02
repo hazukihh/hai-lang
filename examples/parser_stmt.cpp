@@ -1,5 +1,20 @@
 #include <fstream>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#include <windows.h> // SetConsoleOutputCP, SetConsoleCP
+
+#undef WIN32_LEAN_AND_MEAN
+#undef NOMINMAX
+#endif
+
 #include "common/Log.h"
 #include "common/Defer.hpp"
 
@@ -12,6 +27,11 @@
 int internal_main(int argc,char** argv);
 int main(int argc,char** argv)
 {
+#ifdef _WIN32
+  SetConsoleOutputCP(CP_UTF8);  // CP_UTF8 = 65001
+  SetConsoleCP(CP_UTF8);
+#endif
+
   Log::Init("%^%v%$");
   DEFER[]{
     Log::Shutdown();
@@ -83,7 +103,7 @@ int internal_main(int argc,char** argv)
   Lexer lexer;
   lexer.init(input);
 
-  {
+#if 0
     Lexer lexer_copy = lexer;
     for(;;) {
       Token token = lexer_copy.get_token();
@@ -94,7 +114,7 @@ int internal_main(int argc,char** argv)
       LOG_INFO("{} \t\t {}",token.to_str(),ETokenType_to_Str(token.type));
     }
     LOG_INFO("====Lexer End====");
-  }
+#endif
 
   auto get_value = [](const Token& t)
   {
@@ -107,7 +127,7 @@ int internal_main(int argc,char** argv)
     auto* stmt = parse_stmt(&lexer);
 
     print(stmt);
-    g_arena.rewind(0);
+    g_arena.reset();
   }
 
   lexer.expect(ETK_EOF);

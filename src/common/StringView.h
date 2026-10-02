@@ -40,12 +40,17 @@ template<size_t N>
 }
 
 [[nodiscard]] ::std::string sv_to_str(StringView sv);
+
+[[nodiscard]] StringView sv_trim_left_if(StringView sv,bool (*pre)(int));
+[[nodiscard]] StringView sv_trim_right_if(StringView sv,bool (*pre)(int));
+[[nodiscard]] StringView sv_trim_if(StringView sv,bool (*pre)(int));
 /**
  * @brief trim_left the char in {' ','\t',\n','\v','\f','\r'}(isspace)
  */
 [[nodiscard]] StringView sv_trim_left(StringView sv);
 [[nodiscard]] StringView sv_trim_right(StringView sv);
 [[nodiscard]] StringView sv_trim(StringView sv);
+
 [[nodiscard]] bool sv_eq(StringView a, StringView b);
 [[nodiscard]] bool sv_ends_with(StringView sv, StringView suffix);
 [[nodiscard]] bool sv_starts_with(StringView sv, StringView prefix);
@@ -75,28 +80,41 @@ template<typename... Args>
 }
 
 
-StringView sv_trim_left(StringView sv) {
+StringView sv_trim_left_if(StringView sv,bool (*pre)(int)) {
   size_t i = 0;
   size_t size = sv.size();
   const char* data = sv.data();
-  while (i < size && is_space(data[i])) {
+  while (i < size && pre(data[i])) {
     i += 1;
   }
   return StringView{data + i, size - i};
 }
-StringView sv_trim_right(StringView sv) {
+StringView sv_trim_right_if(StringView sv,bool (*pre)(int)) {
   size_t i = 0;
   size_t size = sv.size();
   const char* data = sv.data();
-  while (i < size && is_space(data[size - 1 - i])) {
+  while (i < size && pre(data[size - 1 - i])) {
     i += 1;
   }
 
   return StringView{data, size - i};
+
+}
+StringView sv_trim_if(StringView sv,bool (*pre)(int)) {
+  return sv_trim_right_if(sv_trim_left_if(sv,pre),pre);
+}
+
+StringView sv_trim_left(StringView sv) {
+  return sv_trim_left_if(sv,is_space);
+}
+StringView sv_trim_right(StringView sv) {
+  return sv_trim_right_if(sv,is_space);
 }
 StringView sv_trim(StringView sv) {
-  return sv_trim_right(sv_trim_left(sv));
+  return sv_trim_if(sv,is_space);
 }
+
+
 
 bool sv_eq(StringView a, StringView b) {
   if (a.size() != b.size()) {

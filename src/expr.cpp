@@ -1,7 +1,11 @@
 #include "expr.h"
 
+#include <span>
+
 #include "lexer.h"
 #include "common/variant_match.h"
+#include "common/Assert.h"
+#include "symbol_table.h"
 
 void expr_print(const Expr& self,std::string(* get_value)(const Token& t), int depth)
 {
@@ -38,7 +42,30 @@ void expr_print(const Expr& self,std::string(* get_value)(const Token& t), int d
 
 
   // print self
-  LOG_DEBUG("{:{}}{}","",depth*SPACE_SIZE,get_value(self.atom));
+  MATCH(self.data,
+    [&](const CharLitExpr& node) {
+      LOG_DEBUG("{:{}}{}or{}","",depth*SPACE_SIZE,node.codepoint,node.val);
+    },
+    [&](const StrLitExpr& node) {
+      fmt::memory_buffer buf;
+      if (node.val.empty()) buf.append(sv_from_lit("<empty-str>"));
+      else
+      {
+        buf.append(fmt::format("(1): {}\n(2): ",node.val));
+        for (char ch : node.val)
+        {
+          fmt::format_to(std::back_inserter(buf),"{:d},",ch);
+        }
+      }
+      LOG_DEBUG("{:{}}{}","",depth*SPACE_SIZE,fmt::to_string(buf));
+
+    },
+    [&](const auto& _)
+    {
+      LOG_DEBUG("{:{}}{}","",depth*SPACE_SIZE,get_value(self.atom));
+    }
+  );
+
 
   // print left
   MATCH(self.data,
@@ -146,6 +173,180 @@ static Expr::Ptr infix_dot(Lexer *lexer,const Token& self,Expr::Ptr left);
 
 static Expr::Ptr infix_arr(Lexer *lexer,const Token& self,Expr::Ptr left);
 
+/**
+ * @brief parse escape char
+ *   else like c/c++
+ * @param lexer
+ * @param tok
+ * @param[inout] text
+ *   when in, the text is not removed the prefix '\\'.
+ *   when out, the text remove the parsed char.
+ * @return {char number,ok}
+ * TODO: if support \u \U, should return {uint32_t,ok} ??
+ */
+static std::pair<uint32_t,bool> parse_escape_char(Lexer *lexer,const Token& tok,StringView& text) {
+  // removed the prefix '\\'
+  text.remove_prefix(1);
+
+  if(text.empty()) [[unlikely]]{
+    //  may never can go into here
+    lexer->error_at(tok,"CharLiteral lack something after '\\'");
+    return {0,false};
+  }
+
+  #if 0 // no Octal \nnn, but remain \0
+  if('0' <= text[0] && text[0] <= '7') {
+    // Octal Number \ddd (1~3 octal digits)
+    int val = text[0] - '0';
+    int len = 1;
+    while(len < 3 && len < text.size() && '0' <= text[len] && text[len] <= '7') {
+      val = (val << 3) + (text[len] - '0');
+      ++len;
+    }
+    text.remove_prefix(len);
+    // TODO: if val > 255, return ok=false?? or cast(char)(val)
+    return {static_cast<char>(val),true};
+  }
+  #endif
+
+  if (text[0] == 'x') {
+    /// Hex Number \xhh, hex fixed 2 hex digits,
+    /// because "\xFFFanu" but user may want "\xFF" + "Fanu"
+
+    if(text.size() < 3) {
+      lexer->error_at(tok,"\\xhh need fixed 2 hex digits");
+      return {0,false};
+    }
+    if (!isxdigit(text[1]) || !isxdigit(text[2])) {
+      lexer->error_at(tok,"the h in \\xhh should be hex digits ");
+      return {0,false};
+    }
+
+    uint32_t val = int_from_hex(text[1]);
+    val = (val << 4) + int_from_hex(text[2]);
+
+    text.remove_prefix(3);
+
+    return {val,true};
+
+  }
+
+
+
+  switch(text[0])
+  {
+  case '0': text.remove_prefix(1);  return {'\0',true};
+  case 'a': text.remove_prefix(1);  return {'\a',true};
+  case 'b': text.remove_prefix(1);  return {'\b',true};
+  case 'f': text.remove_prefix(1);  return {'\f',true};
+  case 'n': text.remove_prefix(1);  return {'\n',true};
+  case 'r': text.remove_prefix(1);  return {'\r',true};
+  case 't': text.remove_prefix(1);  return {'\t',true};
+  case 'v': text.remove_prefix(1);  return {'\v',true};
+  case '\\': text.remove_prefix(1); return {'\\',true};
+  // case '?': text.remove_prefix(1);  return {'\?',true};
+  case '\'': text.remove_prefix(1); return {'\'',true};
+  case '\"': text.remove_prefix(1); return {'\"',true};
+  // [GNU] \e for the ASCII escape character is a GNU C extension.
+  case 'e': text.remove_prefix(1); return {27,true};
+
+  // TODO: ERROR / Warning here?. Now,just ok.for-example: look '\z' as 'z'
+  default:
+    lexer->error_at(tok,fmt::format("illegal escape char '\\{}'",text[0]));
+    return {text[0],false};
+  }
+}
+
+
+// TODO: Lexer *lexer. lexer->error_at
+static std::pair<uint32_t,bool> parse_char_literal(Lexer *lexer,const Token& tok) {
+  StringView text = tok.text;
+
+  HAI_ASSERT(text.size()>=2 && text.front() == '\'' && text.back() == '\'');
+  text.remove_prefix(1);
+  text.remove_suffix(1);
+
+
+  if(text.empty()) {
+    lexer->error_at(tok,"CharLiteral empty");
+    return {0,false};
+  }
+
+  // Escape Character
+  if(text[0] == '\\') {
+    if(text.size() < 2) [[unlikely]]{
+      //  may never can go into here
+      lexer->error_at(tok,"CharLiteral lack something after '\\'");
+      return {0,false};
+    }
+
+    auto [val,ok] = parse_escape_char(lexer,tok,text);
+    if (!ok) {
+      return {0,false};
+    }
+    if (!text.empty()) {
+      // char_len > 1
+      lexer->error_at(tok,"CharLiteral len > 1");
+      return {0,false};
+    }
+    return {val,true};
+  }
+  /// text[0] != '\\'
+
+  // TODO: Type-char is "unicode codepoint" or "1 byte" ?? (now) "1 byte"
+  if(text.size() > 1) {
+    lexer->error_at(tok,"CharLiteral len > 1");
+    return {0,false};
+  }
+  return {text[0],true};
+
+}
+
+
+// std::pair<size_t,const char*> vs std::pair<size_t,const uint8_t*>
+// StringView vs std::span<const uint8_t>
+static StringView parse_str_literal(Lexer *lexer,const Token& tok)
+{
+  StringView text = tok.text;
+
+  HAI_ASSERT(text.size()>=2 && text.front() == '"' && text.back() == '"');
+  text.remove_prefix(1);
+  text.remove_suffix(1);
+
+  const auto error_case = StringPool::GetInstance().CreateString("");
+
+  if(text.empty()) {
+    return error_case;
+  }
+
+  fmt::memory_buffer buf;
+  while (!text.empty())
+  {
+    // Escape Character
+    if(text[0] == '\\') {
+      if(text.size() < 2) [[unlikely]]{
+        //  may never can go into here
+        lexer->error_at(tok,"StringLiteral lack something after '\\'");
+        return error_case;
+      }
+
+      auto [val,ok] = parse_escape_char(lexer,tok,text);
+      if (!ok) {
+        return error_case;
+      }
+      // TODO: when support \u,should cast to multi-char, and push_back
+      buf.push_back(static_cast<char>(val));
+
+    }
+    else
+    {
+      buf.push_back(text[0]);
+      text.remove_prefix(1);
+    }
+  }
+  return StringPool::GetInstance().CreateString(fmt::to_string(buf));
+}
+
 /// =======
 ///  Impl
 /// =======
@@ -192,7 +393,8 @@ const Rule& GetRules(ETokenType index)
     {ETK_IntLit ,{prefix_primary,nullptr,150}},
     {ETK_FlLit ,{prefix_primary,nullptr,150}},
     {ETK_CharLit ,{prefix_primary,nullptr,150}},
-    {ETK_StrLit ,{prefix_primary,nullptr,150}}
+    {ETK_StrLit ,{prefix_primary,nullptr,150}},
+    {ETK_Error,{prefix_primary,nullptr,150}},
   };
 
   const auto iter = kRules.find(index);
@@ -216,7 +418,7 @@ Expr::Ptr ptr_move(Expr::Ptr& ptr)
   return temp;
 }
 #define MOVE(ptr) ptr_move(ptr)
-#define MAKE_PTR(Type) ::new (static_cast<Type*>(g_arena.alloc(sizeof(Type)))) Type
+#define MAKE_PTR(Type) ::new (g_arena.alloc<Type>(1)) Type
 
 #endif
 /// ============
@@ -224,8 +426,15 @@ Expr::Ptr ptr_move(Expr::Ptr& ptr)
 /// ============
 
 
-Expr::Ptr prefix_primary(Lexer *, const Token& self) {
+Expr::Ptr prefix_primary(Lexer *lexer, const Token& self) {
   switch (self.type) {
+  case ETK_Error: {
+    lexer->isPanic = true;
+    return MAKE_PTR(Expr)(Expr{
+      .atom = self,
+      .data = std::monostate{}
+    });
+  }break;
   case ETK_Identifier: {
     return MAKE_PTR(Expr)(Expr{
       .atom = self,
@@ -252,17 +461,26 @@ Expr::Ptr prefix_primary(Lexer *, const Token& self) {
   }break;
   case ETK_CharLit: {
     CharLitExpr lit;
-    // TODO: parse charlit
-    // lit.ch = parse_ch(self.text);
+
+    auto [val,ok] = parse_char_literal(lexer,self);
+
+    lit.codepoint = val;
+    lit.val = val;
+
     return MAKE_PTR(Expr)(Expr{
       .atom = self,
-      .data = lit
+      .data = lit,
     });
   }break;
   case ETK_StrLit: {
     StrLitExpr str_lit;
     // TODO: Symbol Table / String Pool
-    // lit.str = parse_str(self.text);
+
+    str_lit.val = parse_str_literal(lexer,self);
+    // str_lit.val = reinterpret_cast<const uint8_t*>(sv.data());
+    // str_lit.count = sv.size();
+
+
     return MAKE_PTR(Expr)(Expr{
       .atom = self,
       .data = str_lit
@@ -334,7 +552,7 @@ Expr::Ptr infix_call(Lexer* lexer, const Token& self, Expr::Ptr left)
 
   Expr* *param_arr = nullptr;
   if(!temp_arr.empty()) {
-    param_arr = g_arena.alloc_as<Expr*>(temp_arr.size());
+    param_arr = g_arena.alloc<Expr*>(temp_arr.size());
 
     std::memcpy(param_arr,temp_arr.data(),sizeof(Expr*) * temp_arr.size());
   }
@@ -396,6 +614,11 @@ Expr::Ptr parse_expression(Lexer *lexer, uint8_t rbp /* = 0 */)
   }
   lexer->consume();
   Expr::Ptr left = prefix_fn(lexer,left_tok);
+
+  // TODO: left never be nullptr
+  if(lexer->isPanic || left == nullptr) {
+    return left;
+  }
 
   for (;;) {
     auto op_tok = lexer->peek();

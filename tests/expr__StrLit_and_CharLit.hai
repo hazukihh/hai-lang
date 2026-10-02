@@ -1,31 +1,36 @@
+var c = '\';
+;
 /// # test StrLit and CharLit
 
-x = "1234  ";
-x = "";
-x = '\\';
+var x = "1234  ";
+var x = "";
+var x = '\\';
+var c = '\'';
 
 // Lexer.error, lack Right-\";
-x = ";
-// Parse.error, expect ';' && Ignore
-_expect_Semi = _ignore;
+var x = ";
+;
 
 
 // Lexer.error, lack Right-\'
-z=';
-// Parse.error, expect ';' && Ignore
-_expect_Semi = _ignore;
+var z=';
+;
 
+// Lexer.error, lack Right-\'
+var c = '\';
+;
 
 // Lexer.error, lack Right-"
-y = "1234 ';
-// Parse.error, expect ';' && Ignore
-_expect_Semi = _ignore;
+var y = "1234 ';
+;
 
 
-// Sema.error, char empty
-x = '';
-// Sema.error, 2 char in charLit
-x = '\\\';
+// parser.error, char empty
+var x = '';
+
+
+// parser-or-Sema.error, 2 char in charLit
+var x = '\\\';
 
 
 

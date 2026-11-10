@@ -1,6 +1,7 @@
 #include "expr.h"
 
-#include <span>
+#include <range/v3/view/filter.hpp>
+#include <range/v3/range/conversion.hpp>
 
 #include "lexer.h"
 #include "common/variant_match.h"
@@ -59,6 +60,15 @@ void expr_print(const Expr& self,std::string(* get_value)(const Token& t), int d
       }
       LOG_DEBUG("{:{}}{}","",depth*SPACE_SIZE,fmt::to_string(buf));
 
+    },
+    [&](const IntLitExpr& node) {
+      LOG_DEBUG("{:{}}{} = {}, suffix={}","",depth*SPACE_SIZE,
+        get_value(self.atom),node.val,node.suffix);
+    },
+    [&](const FloatLitExpr& node)
+    {
+      LOG_DEBUG("{:{}}{} = {}, suffix={}","",depth*SPACE_SIZE,
+        get_value(self.atom),node.val,node.suffix);
     },
     [&](const auto& _)
     {
@@ -128,8 +138,8 @@ postfix / call:
 
 enum EPrecedence : uint8_t
 {
-  // 0 l: EOF ; )
-  // ( r: 0
+  // 0 lbp: EOF ; )
+  // ( rbp: 0
   PREC_ASSIGNS     =10,  // =,+=,-=,...
   PREC_OR          =20,  // ||
   PREC_AND         =30,  // &&
@@ -194,20 +204,7 @@ static std::pair<uint32_t,bool> parse_escape_char(Lexer *lexer,const Token& tok,
     return {0,false};
   }
 
-  #if 0 // no Octal \nnn, but remain \0
-  if('0' <= text[0] && text[0] <= '7') {
-    // Octal Number \ddd (1~3 octal digits)
-    int val = text[0] - '0';
-    int len = 1;
-    while(len < 3 && len < text.size() && '0' <= text[len] && text[len] <= '7') {
-      val = (val << 3) + (text[len] - '0');
-      ++len;
-    }
-    text.remove_prefix(len);
-    // TODO: if val > 255, return ok=false?? or cast(char)(val)
-    return {static_cast<char>(val),true};
-  }
-  #endif
+
 
   if (text[0] == 'x') {
     /// Hex Number \xhh, hex fixed 2 hex digits,
@@ -249,8 +246,6 @@ static std::pair<uint32_t,bool> parse_escape_char(Lexer *lexer,const Token& tok,
   case '\"': text.remove_prefix(1); return {'\"',true};
   // [GNU] \e for the ASCII escape character is a GNU C extension.
   case 'e': text.remove_prefix(1); return {27,true};
-
-  // TODO: ERROR / Warning here?. Now,just ok.for-example: look '\z' as 'z'
   default:
     lexer->error_at(tok,fmt::format("illegal escape char '\\{}'",text[0]));
     return {text[0],false};
@@ -258,7 +253,7 @@ static std::pair<uint32_t,bool> parse_escape_char(Lexer *lexer,const Token& tok,
 }
 
 
-// TODO: Lexer *lexer. lexer->error_at
+
 static std::pair<uint32_t,bool> parse_char_literal(Lexer *lexer,const Token& tok) {
   StringView text = tok.text;
 
@@ -293,7 +288,7 @@ static std::pair<uint32_t,bool> parse_char_literal(Lexer *lexer,const Token& tok
   }
   /// text[0] != '\\'
 
-  // TODO: Type-char is "unicode codepoint" or "1 byte" ?? (now) "1 byte"
+  // TODO: Type-char is "unicode codepoint" as int/u32 or "1 byte" as u8?? (now) "1 byte"
   if(text.size() > 1) {
     lexer->error_at(tok,"CharLiteral len > 1");
     return {0,false};
@@ -302,7 +297,7 @@ static std::pair<uint32_t,bool> parse_char_literal(Lexer *lexer,const Token& tok
 
 }
 
-
+// TODO: now use String Pool(Arena for string): StringPool::GetInstance().CreateString(sv);
 // std::pair<size_t,const char*> vs std::pair<size_t,const uint8_t*>
 // StringView vs std::span<const uint8_t>
 static StringView parse_str_literal(Lexer *lexer,const Token& tok)
@@ -347,6 +342,248 @@ static StringView parse_str_literal(Lexer *lexer,const Token& tok)
   return StringPool::GetInstance().CreateString(fmt::to_string(buf));
 }
 
+
+
+
+struct NumericLiteralParser {
+
+  enum class EIntBase : uint8_t {
+    _10 = 10,
+    _2 = 2,
+    _8 = 8,
+    _16 = 16
+  };
+
+  union { // NumericLiteral
+    IntLitExpr int_lit = {};
+    FloatLitExpr fl_lit;
+  } result;
+
+  EIntBase base = EIntBase::_10;
+  StringView val_text;
+  // 0: integer/float, 1: exponent, 2: suffix
+  //TIPS: 1: empty? 2:empty?
+  StringView texts[3];
+  bool is_float = false;
+  std::string error_msg;
+
+
+  static bool is_digit_base(uint8_t c,const EIntBase _base = EIntBase::_10) {
+    switch(static_cast<uint8_t>(_base)) {
+    case 2: return c == '0' || c == '1';
+    case 8: return '0' <= c && c <= '7';
+    case 10: return is_digit(c);
+    case 16: return isxdigit(c);
+    default: return false;
+    }
+  }
+/**
+  Prefix ::= 0b | 0B | 0o | 0O | 0x | 0X
+  Digit ::= B_Digit | O_Digit | X_Digit | D_Digit
+  Album ::= [0-9a-zA-Z]
+
+  Hex_Literal ::= Prefix Digit [Digit_]* (.[Digit_]*)? ([pP] [+-]? [0-9] [0-9_]*)? (Album [Album_]*)?
+  Dec_Literal ::= Digit [Digit_]* (.[Digit_]*)? ([eE] [+-]? [0-9] [0-9_]*)? (Album [Album_]*)?
+  Other_Literal ::= Prefix Digit [Digit_]* (Album [Album_]*)?
+
+ */
+  bool parse_pp_number(const Token& tok)
+  {
+    const char *p = tok.text.data();
+    const char *end = tok.text.data() + tok.text.size();
+
+    // Prefix
+    if (p[0] == '0' && p+1 < end)
+    {
+      char c1 = p[1];
+      switch(c1) {
+      case 'x':
+      case 'X':
+        if(p+2 >= end) {
+          error_msg = "0x prefix should be followed by hex digit";
+          return false;
+        }
+        base = EIntBase::_16;
+        p += 2;
+        break;
+      case 'o':
+      case 'O':
+        if(p+2 >= end) {
+          error_msg = "0o prefix should be followed by octal digit";
+          return false;
+        }
+        base = EIntBase::_8;
+        p += 2;
+        break;
+      case 'b':
+      case 'B':
+        if(p+2 >= end) {
+          error_msg = "0b prefix should be followed by binary digit";
+          return false;
+        }
+        base = EIntBase::_2;
+        p += 2;
+        break;
+      default:
+        break;
+      }
+    }
+
+    const char *digits_begin = p;
+    // Digit
+    if(p >= end || !is_digit_base(*p,base)) {
+      if(base == EIntBase::_16)
+        error_msg = "invalid literal,0x prefix must be followed by hex digit";
+      else if(base == EIntBase::_8)
+        error_msg = "invalid literal,0o prefix must be followed by oct digit";
+      else if(base == EIntBase::_2)
+        error_msg = "invalid literal,0b prefix must be followed by bin digit";
+      else
+        error_msg = "invalid literal,has invalid dec digit";
+
+      return false;
+    }
+    p += 1;
+
+    // [Digit_]*
+    while(p < end && (is_digit_base(*p,base) || *p == '_'))
+    {
+      p += 1;
+    }
+
+    // (.[Digit__]*)? && (is_hex || is_dec)
+    if(p < end && *p == '.')
+    {
+      if(!(base == EIntBase::_10 || base == EIntBase::_16)) {
+        error_msg = "invalid char '.' in literal";
+        return false;
+      }
+      is_float = true;
+      p += 1;
+      // [Digit__]*
+      while(p < end && (is_digit_base(*p,base) || *p == '_'))
+      {
+        p += 1;
+      }
+    }
+
+    texts[0] = StringView{digits_begin,p};
+
+
+
+    // is_hex => ([pP] [+-]? [0-9] [0-9_]*)?
+    // is_dec => ([eE] [+-]? [0-9] [0-9_]*)?
+    if(p < end && (base == EIntBase::_16 && (*p == 'p' || *p == 'P')
+      || base == EIntBase::_10 && (*p == 'e' || *p == 'E'))
+    ){
+      // [pP] | [eE]
+      is_float = true;
+      p += 1;
+
+      const char *exp_begin = p;
+
+      // [+-]?
+      if(p < end && (*p == '+' || *p == '-')) {
+        p += 1;
+      }
+
+      // [0-9]
+      if(p >= end || !is_digit(*p)) {
+        error_msg = "expected dec digits after exponent";
+        return false;
+      }
+      p += 1;
+      // [0-9_]*
+      while(p < end && (is_digit(*p) || *p == '_')) {
+        p +=1;
+      }
+
+      texts[1] = StringView{exp_begin,p};
+    }
+
+    if (digits_begin == p)
+    {
+      error_msg = "invalid number literal";
+      return false;
+    }
+
+    val_text = StringView{digits_begin,p};
+
+    // suffix: ([alnum][alnum_]*)?
+    const char *suffix_begin = p;
+    if(p < end && is_alnum(*p)) {
+
+      p += 1;
+      while(p < end && (is_alnum(*p) || *p == '_')) {
+        p += 1;
+      }
+      texts[2] = StringView{suffix_begin,p};
+    }
+    if(p < end) {
+      error_msg = fmt::format("number literal suffix \"{}\" has invalid char '{}'",StringView{suffix_begin,end},*p);
+      return false;
+    }
+
+    return true;
+  }
+
+
+  bool parse(const Token& tok)
+  {
+    if(!parse_pp_number(tok)) {
+      return false;
+    }
+
+    // TODO: use the-arena-for-std::string to store the temp string 'val_text_remove_underscore' or not??
+    #if 0
+    std::string val_text_remove_underscore;
+    val_text_remove_underscore.reserve(val_text.size());
+    for(char c : val_text) {
+      if(c != '_') {
+        val_text_remove_underscore.push_back(c);
+      }
+    }
+    #else
+    auto val_text_remove_underscore = val_text
+      | ranges::views::filter([](char c){return c != '_';})
+      | ranges::to<std::string>();
+    #endif
+
+    std::from_chars_result res;
+    if(is_float) {
+      res = ::std::from_chars(
+        val_text_remove_underscore.data(),
+        val_text_remove_underscore.data() + val_text_remove_underscore.size(),
+        result.fl_lit.val,
+        base == EIntBase::_16 ? std::chars_format::hex : std::chars_format::general
+      );
+      result.fl_lit.suffix = texts[2];
+    }
+    else {
+      res = ::std::from_chars(
+        val_text_remove_underscore.data(),
+        val_text_remove_underscore.data() + val_text_remove_underscore.size(),
+        result.int_lit.val,
+        static_cast<int>(base)
+      );
+      result.int_lit.suffix = texts[2];
+    }
+
+    if(res.ec != std::errc{}) {
+      error_msg = std::error_condition(res.ec).message();
+      return false;
+    }
+    if(res.ptr != val_text_remove_underscore.data() + val_text_remove_underscore.size()) {
+      error_msg = "Only parsed part of NumberLit";
+      return false;
+    }
+
+    return true;
+  }
+
+
+};
+
 /// =======
 ///  Impl
 /// =======
@@ -390,8 +627,7 @@ const Rule& GetRules(ETokenType index)
     {ETK_LBracket ,{nullptr,infix_arr,140}},
     // primary ?
     {ETK_Identifier,{prefix_primary,nullptr,150}},
-    {ETK_IntLit ,{prefix_primary,nullptr,150}},
-    {ETK_FlLit ,{prefix_primary,nullptr,150}},
+    {NumberLit ,{prefix_primary,nullptr,150}},
     {ETK_CharLit ,{prefix_primary,nullptr,150}},
     {ETK_StrLit ,{prefix_primary,nullptr,150}},
     {ETK_Error,{prefix_primary,nullptr,150}},
@@ -441,9 +677,34 @@ Expr::Ptr prefix_primary(Lexer *lexer, const Token& self) {
       .data = IdentExpr{}
     });
   }break;
+#if 0 // the old codes for parse number literal
   case ETK_IntLit: {
     IntLitExpr int_lit;
-    int_lit.val = parse_number<uint64_t>(self.text);
+
+    auto [ptr,ec] =std::from_chars(
+      self.text.data() + (self.int_base == 10 ? 0 : 2),
+        self.text.data()+self.text.size(),
+        int_lit.val,
+        self.int_base);
+
+    if (ec != std::errc{})
+    {
+
+      lexer->error_at(self,std::error_condition(ec).message());
+      return MAKE_PTR(Expr)(Expr{
+        .atom = self,
+        .data = std::monostate{}
+      });
+    }
+    if (ptr != self.text.data()+self.text.size())
+    {
+
+      lexer->error_at(self,"Only parsed part of IntLiteral");
+      return MAKE_PTR(Expr)(Expr{
+        .atom = self,
+        .data = std::monostate{}
+      });
+    }
 
     return MAKE_PTR(Expr)(Expr{
       .atom = self,
@@ -459,6 +720,30 @@ Expr::Ptr prefix_primary(Lexer *lexer, const Token& self) {
       .data = fl_lit
     });
   }break;
+#else
+  case NumberLit:{
+    NumericLiteralParser parser;
+    if(!parser.parse(self)) {
+      lexer->error_at(self,parser.error_msg);
+      return MAKE_PTR(Expr)(Expr{
+        .atom = self,
+        .data = std::monostate{}
+      });
+    }
+    if(parser.is_float) {
+      return MAKE_PTR(Expr)(Expr{
+        .atom = self,
+        .data = parser.result.fl_lit
+      });
+    } else {
+      return MAKE_PTR(Expr)(Expr{
+        .atom = self,
+        .data = parser.result.int_lit
+      });
+    }
+
+  }break;
+#endif
   case ETK_CharLit: {
     CharLitExpr lit;
 
@@ -474,7 +759,7 @@ Expr::Ptr prefix_primary(Lexer *lexer, const Token& self) {
   }break;
   case ETK_StrLit: {
     StrLitExpr str_lit;
-    // TODO: Symbol Table / String Pool
+
 
     str_lit.val = parse_str_literal(lexer,self);
     // str_lit.val = reinterpret_cast<const uint8_t*>(sv.data());
@@ -615,7 +900,7 @@ Expr::Ptr parse_expression(Lexer *lexer, uint8_t rbp /* = 0 */)
   lexer->consume();
   Expr::Ptr left = prefix_fn(lexer,left_tok);
 
-  // TODO: left never be nullptr
+  // TODO: left never be nullptr?? when parse_expression return nullptr,left = prefix_fn(...) maybe nullptr
   if(lexer->isPanic || left == nullptr) {
     return left;
   }
@@ -630,7 +915,7 @@ Expr::Ptr parse_expression(Lexer *lexer, uint8_t rbp /* = 0 */)
 
     const InfixFn infix_fn = rule.infix;
     if (!infix_fn) {
-      // TODO: what msg is better?
+      // TODO: what msg is better, when infix_fn is nullptr?
       lexer->error_at(op_tok,"expect binary-op or postfix-op or ';'");
       break;
     }

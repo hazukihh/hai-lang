@@ -13,6 +13,7 @@ target_include_directories(haic PRIVATE
     deps/debugbreak
     deps/spdlog/include
     deps/parallel-hashmap/include # flat_hash_map ...
+    deps/range-v3/include/range-v3
 )
 target_sources(haic PRIVATE
     src/common/Log.cpp

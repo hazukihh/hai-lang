@@ -14,15 +14,50 @@ TODO: TokenLoc better solution for error report:
 	(now)(1) int line;const char* line_start; 提前计算line值,column值延迟到错误时，结合text_start `:*const char` 计算
 	(2) "一些标记实现将位置存储为两个数字：从源文件开始到词素开始的偏移量，以及词素的长度。扫描器无论如何都会知道这些数字，因此计算这些数字没有任何开销。通过回头查看源文件并计算前面的换行数，可以将偏移量转换为行和列位置。这听起来很慢，确实如此。然而，只有当你需要向用户实际显示行和列的时候，你才需要这样做。大多数标记从来不会出现在错误信息中。对于这些标记，你花在提前计算位置信息上的时间越少越好。" => 将line值也延迟到错误发生时计算，从源文件开头src `:* const char`开始扫描计算
 
-TODO: support lit_prefix, lit_suffix in parse_expr() ? or in Lexer ?
-
 TODO: type.h,symbol_table.h,sema.h;
 
+
+
+version-0.1.8:
+  (1) impl Lexer NumberLiteral => pp_number. Parser NumberLit Syntax:
+    Prefix ::= 0b | 0B | 0o | 0O | 0x | 0X
+    Digit ::= B_Digit | O_Digit | X_Digit | D_Digit
+    Album ::= [0-9a-zA-Z]
+    Suffix ::= (Album [Album_]*)
+    Hex_Lit   ::= Prefix Digit [Digit_]* (.[Digit_]*)? ([pP] [+-]? [0-9] [0-9_]*)? Suffix?
+    Dec_Lit   ::=        Digit [Digit_]* (.[Digit_]*)? ([eE] [+-]? [0-9] [0-9_]*)? Suffix?
+    Other_Lit ::= Prefix Digit [Digit_]* Suffix?
+
+    TODO: support "5." or not? or only "5.0";
+      (now) support "5."
+    TODO: c/c++中 hex小数 必须要有指数p,否则无效。 是否兼容？如何实现? 测试案例与预期输出
+      Hex_Lit   ::= Prefix Digit [Digit_]* (. [Digit_]* [pP] [+-]? [0-9] [0-9_]*)? Suffix?
+
+    TODO: NumberLitSuffix use '@' starts  like "0x123@f64" "0b1111@u8"??
+
+  (1.1) Reference：Examples for the test case of NumberLit:
+    https://github.com/ziglang/zig/pull/4741/changes/BASE..925f71085269a8072ea9c49025a534fa47fbec44#diff-d1b5b7b5c19f902226f435ff8fcea13c6c3c45fb5c67a5e5568bf4e54cd2c4f0
+
+  (2)FIX:StringLit/CharLit in Lexer: if the '\\' in the end of input, pos + 2 will be == EOF+1,then cause Error out of range;
+    TEST("var s = \"xxx\\")
+
+  (3) TODO: support StringLit_suffix
+
+  (4) TODO:FIXME: test case in "test_NumberLit.hai"
+        '''0b1.1; // error_expr
+           another_expr;'''
+           => the error_expr cause the sync, and the sync will let lexer ignore the code "another_expr;"
+           => in "parser.cpp" "parse_expr_stmt(...)"
+           We originally expect that only ignore "0b1.1 ;".
+           how to do ???
 
 version-0.1.7:
   (1)StringView.h  add functions "sv_trim_*_if"
   (2)FIX: lexer: ('\'') should be correct, but ('\') should be error
   (3)impl parse_StringLit, parse_charLit :
+    TODO: Type-char is "unicode codepoint" as int/u32 or "1 byte" as u8??
+      (now) "1 byte"
+
     Escape Character Syntax:
       \a  alert (bell)
       \b  backspace

@@ -78,7 +78,6 @@ Testing/
 
 /deps/gtest/
 
-/tests/*.exe
-/tests/*.sh
-/tests/Makefile
+
+/tests/code_gen/
 

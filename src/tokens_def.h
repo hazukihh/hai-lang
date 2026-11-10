@@ -111,8 +111,7 @@ enum ETokenType
   ETK_Whitespace,
   ETK_Comment,
   ETK_Identifier,
-  ETK_IntLit,
-  ETK_FlLit,
+  NumberLit,
   ETK_CharLit,
   ETK_StrLit,
 
@@ -148,8 +147,7 @@ inline StringView ETokenType_to_Str(ETokenType type)
     /*[ETK_Whitespace] =*/ "ETK_Whitespace",
     /*[ETK_Comment] =*/ "ETK_Comment",
     /*[ETK_Identifier] =*/ "ETK_Identifier",
-    /*[ETK_IntLit] =*/ "ETK_IntLit",
-    /*[ETK_FlLit] =*/ "ETK_FlLit",
+    /*[NumberLit] =*/ "NumberLit",
     /*[ETK_CharLit]*/ "ETK_CharLit",
     /*[ETK_StrLit] =*/ "ETK_StrLit",
     KEYWORD_EXPAND(ETOKEN_KEYWORD_NAME_X),
@@ -247,7 +245,10 @@ struct Token
 
   TokenLoc loc;
 
-  // Identifier,IntLit,FlLit,StrLit will return .text, others return type_tag_str
+
+  // uint8_t int_base = 10; // the old codes for parsing int literal in (expr.h,prefix_primary) need it
+
+  // Identifier,NumberLit,StrLit will return .text, others return type_tag_str
   [[nodiscard]] StringView to_str() const
   {
     switch (type)
@@ -258,8 +259,7 @@ struct Token
       case ETK_None:       // fallthrough
       case ETK_Comment:    // fallthrough
       case ETK_Identifier: // fallthrough
-      case ETK_IntLit:     // fallthrough
-      case ETK_FlLit:      // fallthrough
+      case NumberLit:     // fallthrough
       case ETK_CharLit:    // fallthrough
       case ETK_StrLit:     // fallthrough
         return text;

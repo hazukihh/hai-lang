@@ -53,6 +53,9 @@ static int utf8_char_len(unsigned char c)
 }
 
 
+
+
+
 bool Lexer::init(std::string_view src)
 {
 #ifndef NDEBUG
@@ -266,19 +269,37 @@ Token Lexer::get_token()
     }
   }
 
-  // Int literal
-  // TODO: hex: 0X/0x...; Oct 0O/0o...
-  // TODO: float literal
+  // Number literal
+#if 1
+
   if(is_digit(input_[0])) {
-    size_t pos = 0;
-    while(pos < input_.size() && is_digit(input_[pos])) {
-      ++pos;
+
+    size_t pos = 1;
+
+    while(pos < input_.size()) {
+      char c = input_[pos];
+      if(is_alnum(c) || c== '.' || c == '_') {
+
+        if((c == 'e' || c=='E' || c=='p' || c=='P')
+          && pos+1 < input_.size()
+          && (input_[pos+1] == '+' || input_[pos+1] == '-'))
+        {
+          pos += 2; // eat e/E/p/P and +/-
+          continue;
+        }
+
+        pos += 1;
+        continue;
+      }
+
+      break;
     }
+
     StringView literal_sv = {input_.data(),pos};
     input_ = sv_slice(input_,pos);
 
     return Token{
-      .type = ETK_IntLit,
+      .type = NumberLit,
       .text = literal_sv,
       .loc = {
         .line = row_,
@@ -286,7 +307,104 @@ Token Lexer::get_token()
       }
     };
   }
+#else
+  if(is_digit(input_[0])) {
+    bool (*pre_func)(int) = nullptr;
+    uint8_t int_base = 10;
+    size_t pos = 0;
+    if (input_[0] == '0')
+    {
+      if (input_.size() < 2)
+      {
+        StringView literal_sv = {input_.data(),1};
+        input_ = sv_slice(input_,1);
 
+        return Token{
+          .type = ETK_IntLit,
+          .text = literal_sv,
+          .loc = {
+            .line = row_,
+            .line_start = base_
+          }
+        };
+      }
+
+      switch (input_[1]) {
+      case 'x':
+      case 'X': {
+        pos = 2;
+        int_base = 16;
+        pre_func = [](int c)
+        {
+          return isxdigit(c) > 0;
+        };
+      }break;
+
+      case 'o':
+      case 'O': {
+        pos = 2;
+        int_base = 8;
+        pre_func = [](int c)
+        {
+          return '0' <= c && c <= '7';
+        };
+      }break;
+      case 'b':
+      case 'B': {
+        pos = 2;
+        int_base = 2;
+        pre_func = [](int c)
+        {
+          return '0' == c || c == '1';
+        };
+      }break;
+      default:
+        pos = 0;
+        pre_func = is_digit;
+      }
+    }
+    else
+    {
+      pos = 0;
+      pre_func = is_digit;
+    }
+    size_t start = pos;
+    while(pos < input_.size() && pre_func(input_[pos])) {
+      ++pos;
+    }
+
+    StringView literal_sv = {input_.data(),pos};
+    input_ = sv_slice(input_,pos);
+
+    bool isEmpty = pos == start;
+    if (isEmpty)
+    {
+      error_at(
+        Token {
+        .type = ETK_StrLit,
+        .text = literal_sv,
+        .loc = {
+          .line = row_,
+          .line_start = base_},
+        .int_base = int_base
+        },
+        "missing digits after radix prefix"
+        ,false
+      );
+    }
+
+    return Token{
+      .type = isEmpty ? ETK_Error : ETK_IntLit,
+      .text = literal_sv,
+      .loc = {
+        .line = row_,
+        .line_start = base_
+      },
+      .int_base = int_base
+    };
+
+  }
+#endif
   /**
    * @note how to deal with Conflict in Punct '\"' '\''
    *    probably not has operator for '\"' '\'' , So just remove them from puncts
@@ -295,145 +413,14 @@ Token Lexer::get_token()
   /// String literal "..."
   if (input_[0] == '"')
   {
-    size_t pos = 1;
-    bool is_closed = false;
-
-    while (pos < input_.size())
-    {
-      // TODO: ? why unsigned char, not just char ??
-      const unsigned char c = input_[pos];
-      if (c == '"')
-      {
-        is_closed = true;
-        break;
-      }
-      /// Feature: don't support Multi-Line-String
-      if (c == '\n') break;
-
-      // FIX: test "\"..." and "\"
-      if (c == '\\')
-      {
-        pos += 2;
-        continue;
-      }
-
-      ++pos;
-    }
-
-    // pos.* == '\"'        => input_[0:pos+1)
-    // TODO: Tip: warning: lack Right-'\"', but assume there has one and correct. Or directly error here?
-    // pos == input_.size() => input_[0:pos+1) => input_[0:size()+1) => input_[0:size()) => input_[0:pos)
-    // pos.* == '\n'        => input_[0:pos) , leave the rest for next-get in order to support row_/base_
-    StringView sv;
-    if (is_closed) {
-      sv = StringView{input_.data(),pos+1};
-      input_ = sv_slice(input_,pos+1);
-    }
-    /// EOF or '\n'
-    else {
-      /// Error Recover: chop until the-end-of-line or EOF
-      // LOG_WARN("StringLiteral lack Right-'\"'");
-      size_t sv_end = (pos > 0 && input_[pos - 1] == '\r') ? pos-1:pos;
-      sv = sv_slice(input_,0,sv_end);
-      input_ = sv_slice(input_,pos);
-
-      if (this->enable_lexer_report_error)
-      {
-        error_at(
-          Token {
-          .type = ETK_StrLit,
-          .text = sv,
-          .loc = {
-            .line = row_,
-            .line_start = base_}
-          },
-          "StringLiteral lack Right-'\"'"
-          ,false
-        );
-      }
-
-    }
-    return Token{
-      .type = is_closed ? ETK_StrLit : ETK_Error,
-      .text = sv,
-      .loc = {
-        .line = row_,
-        .line_start = base_
-      },
-    };
+    return Lex_StrLit_Or_CharLit<true>();
   }
 
   /// Char literal '...'
   if (input_[0] == '\'')
   {
-    size_t pos = 1;
-    bool is_closed = false;
-
-    while (pos < input_.size())
-    {
-      const unsigned char c = input_[pos];
-      if (c == '\'')
-      {
-        is_closed = true;
-        break;
-      }
-      /// Feature: don't support Multi-Line-String
-      if (c == '\n') break;
-
-      // FIX: test '\'' and '\'
-      if (c == '\\')
-      {
-        pos += 2;
-        continue;
-      }
-
-      ++pos;
-    }
-
-
-    StringView sv;
-    if (is_closed) {
-      sv = StringView{input_.data(),pos+1};
-      input_ = sv_slice(input_,pos+1);
-    }
-    // EOF or '\n'
-    else
-    {
-      // LOG_WARN("CharLiteral lack Right-'\''");
-      size_t sv_end = (pos > 0 && input_[pos - 1] == '\r') ? pos-1:pos;
-      sv = sv_slice(input_, 0, sv_end );
-      input_ = sv_slice(input_, pos);
-
-      if (this->enable_lexer_report_error)
-      {
-        error_at(Token{
-          .type = ETK_CharLit,
-          .text = sv,
-          .loc = {
-             .line = row_,
-             .line_start = base_
-           },
-          },
-          "CharLiteral lack Right-'\''"
-          ,false
-        );
-        
-      }
-    }
-
-
-
-    ///tips: when the actully_char_len != 1 , Delay to Parser-Step
-    return Token{
-      .type = is_closed ? ETK_CharLit : ETK_Error,
-      .text = sv,
-      .loc = {
-        .line = row_,
-        .line_start = base_
-      },
-    };
+    return Lex_StrLit_Or_CharLit<false>();
   }
-
 
   /// Identifier / Keyword
   if(IsSymbolStart(input_[0])) {
@@ -486,7 +473,7 @@ Token Lexer::get_token()
   };
   // TODO:!! 连续报告非法字符,不要一个个报告
   error_at(unknown, "Illegal character encountered",false);
-  
+
   input_ = sv_slice(input_,word_len);
   return unknown;
 }
@@ -596,3 +583,105 @@ void Lexer::debug_check_text_loc_valid(const Token& t) const
 #endif
 }
 
+template<bool isStrLit>
+Token Lexer::Lex_StrLit_Or_CharLit()
+{
+  constexpr auto CLOSE_CHAR = isStrLit ? '"' : '\'';
+  constexpr auto TOKEN_TYPE = isStrLit ? ETK_StrLit : ETK_CharLit;
+  constexpr StringView NOT_CLOSE_ERROR_MSG = isStrLit
+    ? "StringLiteral lack Right-'\"'"
+    : "CharLiteral lack Right-'\''";
+
+
+
+  size_t pos = 1;
+  bool is_closed = false;
+
+  while (pos < input_.size())
+  {
+    // TODO: ? why unsigned char, not just char ??
+    const char c = input_[pos];
+    if (c == CLOSE_CHAR)
+    {
+      is_closed = true;
+      pos += 1;
+      break;
+    }
+    /// Feature: don't support Multi-Line-String
+    if (c == '\n'){
+      if(input_[pos-1] == '\r') {
+        pos -= 1;
+      }
+      break;
+    }
+
+    // FIX: test "\"..." and "\"
+    if (c == '\\')
+    {
+      // FIX: Test("var s = \"xxx\\")
+      //    if the '\\' in the end of input, pos + 2 will be == EOF+1
+      if(pos + 1 >= input_.size()) {
+        pos += 1;
+        break;
+      }
+      pos += 2;
+      continue;
+    }
+
+    ++pos;
+  }
+
+  // pos.* == '\"'        => input_[0:pos+1)
+
+  // pos == input_.size() => input_[0:pos+1) => input_[0:size()+1) => input_[0:size()) => input_[0:pos)
+  // pos.* == '\n'        => input_[0:pos) , leave the rest for next-get in order to support row_/base_
+  StringView sv;
+  if (is_closed) {
+    sv = sv_slice(input_,0,pos);
+    input_ = sv_slice(input_,pos);
+  }
+  /// EOF or '\n'
+  else {
+    /// Error Recover: chop until the-end-of-line or EOF
+    // LOG_WARN("StringLiteral lack Right-'\"'");
+
+    sv = sv_slice(input_,0,pos);
+    input_ = sv_slice(input_,pos);
+
+    if (this->enable_lexer_report_error)
+    {
+      error_at(
+        Token {
+          .type = TOKEN_TYPE,
+          .text = sv,
+          .loc = {
+            .line = row_,
+            .line_start = base_
+          }
+        },
+        NOT_CLOSE_ERROR_MSG,
+        false
+      );
+    }
+
+  }
+
+  // TODO: parse suffix for StrLit
+  if constexpr (isStrLit)
+  {
+
+  }
+
+
+  // Tips for CharLit: when the actually_char_len != 1 , Delay to Parser-Step to check
+  return Token{
+    .type = is_closed ? TOKEN_TYPE : ETK_Error,
+    .text = sv,
+    .loc = {
+      .line = row_,
+      .line_start = base_
+    },
+  };
+
+
+}

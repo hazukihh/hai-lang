@@ -1,7 +1,10 @@
 # Static Tire Tree: use switch-case
     https://ieralt.github.io/craftinginterpreters_zh/16.按需扫描.html#_16-4-1-字典树和状态机
 
+# Lexer and Parser for Numeric Constant
 
+  https://deepwiki.com/search/lexer-numeric-constant-token_658c88a9-5000-4483-87c2-69a9eb74e96d?mode=fast
+    char c = getCharAndSize(CurPtr, Size);  // ??: 支持unicode获取char?
 
 
 # Tsoding

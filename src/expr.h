@@ -39,13 +39,13 @@ struct IntLitExpr
 {
   // TODO: BigInt
   uint64_t val = 0;
-  // suffix?
+  StringView suffix;
 };
 struct FloatLitExpr
 {
   // TODO: BigFl
   long double val = 0;
-  // suffix?
+  StringView suffix;
 };
 
 struct CharLitExpr
@@ -140,7 +140,7 @@ struct Expr
   Token atom {.type = ETokenType::ETK_None};
 
   ExprData data;
-  // TODO:
+  // TODO: do i need is_error to tag the expr is error or not??
   bool is_error = false;
 
 };
@@ -154,7 +154,7 @@ struct Lexer;
 
 /**
  * @brief  Pratt parser for parsing expressions.
- *    primary ::= Identifier | IntLit | FlLit | StrLit
+ *    primary ::= Identifier | NumberLit | StrLit
  *    unary ::= + - ! etc. (special "()" )
  *    binary ::= + - * / = etc.
  *    expr ::= unary expr | ( expr )

@@ -1,0 +1,120 @@
+var c01 = 0;
+var c02 = 1;
+var c03 = 9;
+var c04 = 10;
+var c05 = 123;
+var c06 = 456789;
+var c07 = 2147483647;
+var c08 = 9223372036854775807;
+
+
+
+var c09 = 0x0;
+var c10 = 0x1;
+var c11 = 0xFF;
+var c12 = 0xff;
+var c13 = 0xDeadBeef;
+var c14 = 0xDEADBEEF;
+var c15 = 0XFF;
+var c16 = 0Xdeadbeef;
+var c17 = 0x0123456789ABCDEF;
+
+
+var c18 = 0o0;
+var c19 = 0o7;
+var c20 = 0o755;
+var c21 = 0O755;             // 大写 O
+var c22 = 0o7777777777;
+
+
+var c23 = 0b0;
+var c24 = 0b1;
+var c25 = 0b1010;
+var c26 = 0B1010;            // 大写 B
+var c27 = 0b11111111111111111111111111111111;
+
+
+var c28 = 0x0;               // 最小值
+var c29 = 0b0;               // 二进制 0
+var c30 = 0o0;               // 八进制 0
+
+
+var e01 = 1_000;
+var e02 = 1_000_000;
+var e03 = 0xFF_FF;
+var e04 = 0b1010_1010;
+var e05 = 0o7_5_5;
+var e06c = _100;             //  "_100" is a variable, not Literal
+var e07 = 100_;
+
+// supported dec and hex float
+var e08c = 1.0;               //
+var e09c = 3.14;              //
+var e10c = 0.00000000001;     //
+var e11 = .5;                 // error
+var e12c = 5.;                // TODO: support "5." or not? or only "5.0"; (now) support "5."
+var e12c1 = 5.f;              // TODO: support "5." or not? or only "5.0"; (now) support "5."
+var e13c = 0x1.5e3;           // TODO: 是否兼容C，16进制浮点数必须有指数p. {"0x1.5e3","invalid float literal"}
+var e14c = 1.0f;              //
+
+// 科学计数 dec and hex
+var e15c = 1e10;              //
+var e16c = 1E10;              //
+var e17c = 1e-10;             //
+var e18c = 1.5e3;             //
+var e19c = 0xFFe10;           //
+var e20c = 1e+5;              //
+
+var e20_1 = 1p+5;              //  parsed as (val: "1",suffix: "p+5") => error
+
+var e15c1 = 0x1p10;           //
+var e16c1 = 0x1p10;           //
+var e17c1 = 0x1p-10;          //
+var e18c1 = 0x1.5p3;          //
+var e19c1 = 0xFFp10;          //
+var e20c1 = 0x1p+5;           //
+
+var e20_2 = 0x1e+5;           //  parsed as (val: "1e",suffix: "+5") => error
+
+
+
+var e21 = 0x;                //
+var e22 = 0b;                //
+var e23 = 0o;                //
+
+
+//   missing digits after radix prefix -> G 不是 hex 数字
+var e24 = 0xG;               // ❌ G 不是 hex 数字
+var e25 = 0xGG;              // ❌ 非法 hex
+
+
+
+var e26 = 0b2;               // ❌ 2 不是 binary 数字
+var e27 = 0b102;             // ❌ 2 非法
+var e28 = 0o8;               // ❌ 8 不是 octal 数字
+var e29 = 0o789;             // ❌ 8 9 非法
+
+
+var e30c = 42u;               //
+var e31c = 42L;               //
+var e32c = 42f;               //
+var e33c = 42x;               //
+
+
+var e34 = 0x_;               //
+var e35 = 0b_1010;           //
+
+
+var b01c = 0x0;               // 合法：0
+var b02c = 0b0;               // 合法：0
+var b03c = 0o0;               // 合法：0
+var b04c = 0;                 // 合法：0（十进制）
+var b05c = 00;                // ⚠️ 前导 0：是十进制 0
+var b06c = 007;               // ⚠️ 十进制 7
+
+var b07 = 0xFFFFFFFFFFFFFFFF; // u64_max
+var b08c = 0b1111111111111111111111111111111111111111111111111111111111111111; // u64_max
+var b09 = 0x123456789ABCDEF0; // 合法
+
+
+var b11e = 0xFFFFFFFFFFFFFFFFF; // 溢出 u64

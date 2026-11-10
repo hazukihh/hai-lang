@@ -49,7 +49,15 @@ Test_Case(mlComment_e2 "/* right more */ */")
 Hai_Test("test_unknown_token")
 
 
+Test_Case(StrLit_9 [=[var s = "xxxx\\]=])
+
 Hai_Test("expr__StrLit_and_CharLit")
+Hai_Test("test_CharLit_0")
+Hai_Test("test_StringLit_0")
+
+
+Hai_Test("test_IntLit_0")
+Hai_Test("test_NumberLit")
 
 
 ## complete code file

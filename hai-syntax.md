@@ -1,4 +1,5 @@
-﻿@BaseType = s8 | s16 | s32 | s64
+﻿# basic syntax
+@BaseType = s8 | s16 | s32 | s64
 	| u8 | u16 | u32 | u64
 	| f32 | f64 | void | bool | string
 @Type =  @BaseType
@@ -40,32 +41,33 @@ return ;
 
 <fn_name>();
 
-// #function and function pointer
+# function and function pointer
 ```c
 int (*p1)(int, int) = add;   // 函数名可以隐式转化为常量函数指针 "*const fn(int,int)->int"
 int (*p2)(int, int) = &add;  // 显式取地址
 ```
-// #array and pointer and array_view
+#array and pointer and array_view
 
-/// ##C/C++
+## C/C++
 int a[N];
 int *a;
-/// ##jai
+
+## jai
 https://github.com/Jai-Community/Jai-Community-Library/wiki/Getting-Started#variables-constants-and-types
 
-/// ##my?
+## my????
 
 
 //是Array_View的语法糖 还是 *int的数组语义分离
 //数组语义能否 a.* ?  还是只能使用 a[i]
 var a1: []int;
 
-
 // *int的单元素语义分离 => only a2.*
 var a2: *int;
 
 // 类型信息带有N(可编译期计算a3.count/len/size)，但是本身是[]int 还是 Array_View 即可转化为 []int
-// ? : 有需要 表示为数组的指针，但同时不需要数组长度的场景吗？ => 怎么说 [N]T []T 表示为Array_View 的语法糖 其实很合理？
+// ? : 有需要 表示为数组的指针，但同时不需要数组长度的场景吗？ 
+//        => 怎么说 [N]T []T 表示为Array_View 的语法糖 其实很合理？
 var a3: [N]int;
 
 struct Array_view($T) {
@@ -76,11 +78,14 @@ struct Array_view($T) {
   //u8 *data;
 }
 
-// ### 索引/数组长度 i size() / count 是用 s64 还是 u64 / usize(size_t) / ssize
-c/c++ 中的 using Index = ptrdiff_t  + size_t / STL_Container::size() -> size_t / std::ssize(container) -> ssize_t or Index / 
+### 索引/数组长度 i size() / count 是用 s64 还是 u64 / usize(size_t) / ssize
+c/c++ 中的 
+  using Index = ptrdiff_t  + size_t
+  STL_Container::size() -> size_t
+  std::ssize(container) -> ssize_t or Index
 
 
-// ### intptr_t 与 ptrdiff_t 与 uintptr_t
+### intptr_t 与 ptrdiff_t 与 uintptr_t
 ```cpp
 #include <iostream>
 #include <cstdint>  // intptr_t
@@ -151,7 +156,7 @@ sizeof(int*)      = 8
 ```
 
 
-// # n-for  and break continue; like jai
+# n-for  and break continue; like jai
 mode ::=  ":<" ":*" ":<custom>"(可以重载实现？jai是通过宏#expand扩展)
 
 for [":"<mode>] [<label_name> ":="]  <condExpr> {
@@ -164,9 +169,9 @@ for [":"<mode>] [<label_name> ":="]  <condExpr> {
 }
 
 # 编译期计算，通常是需要内置一个解释器。
-#Jai内置一个bytecode解释器。jai会将AST编译到bytecode,之后才编译到(llvm)IR
+## Jai内置一个bytecode解释器。jai会将AST编译到bytecode,之后才编译到(llvm)IR
 
-#虚拟机 栈式 vs 寄存器式
+## 虚拟机 栈式 vs 寄存器式
 栈式容易实现. JVM, .NET CLR, javascript 都是,但是现代化优化会应用JIT.
 .NET 也支持 Native AOT
 寄存器式: Lua 5.0+
@@ -176,6 +181,7 @@ for [":"<mode>] [<label_name> ":="]  <condExpr> {
 栈式有一个额外的操作数栈
 
 
+# more syntax design
 defer ?  __deinit__ ?
 
 pointer : "&a" or "*a" ?
@@ -191,10 +197,67 @@ var foo1 : Foo(s32) = {
   .a = 12, // or use ';' ?
 };
 
+# user defined suffix operator
+
+```cpp
 
 
-=======clang
-Stmt
+//u64 operator ""_a(const char * s) {
+void operator ""_a(const char * s) {
+  while(*s) {
+      log(*s);
+      s += 1;
+  }
+  log('\n');
+  // return 0;
+}
+
+int main() {
+    /*u64 temp = */ 0xFF'FF'FF'FF_a;
+    /*    temp = */ 123'4'56_a;
+    /*    temp = */ 0b11101_a;
+    return 0;
+}
+
+/* console output:
+
+0xFF'FF'FF'FF
+123'4'56
+0b11101
+
+*/
+```
+
+目前 数字后缀:
+  内置类型后缀: u64, f64,... 有用(rust) (**应该支持**)
+  自定义后缀中: 只有数值单位(科学计算/金融货币换算)有用.大部分场景用不上。
+    而且因为支持 指数e/E/p/P 同时用户自定义后缀必须'_'开头，如果数字分隔符使用'_'会有大量歧义。
+    如果使用'\''(c++),也有一些歧义限制：
+      https://cppreference.cn/w/cpp/language/user_literal
+      ```
+      由于引入了用户定义字面量，使用固定宽度整数类型的格式宏常量且前面字符串字面量后没有空格的代码变得无效：
+      std::printf("%"PRId64"\n",INT64_MIN); 必须替换为 std::printf("%" PRId64"\n",INT64_MIN);。
+      由于最长匹配原则，以 p、P、（C++17 起） e 和 E 结尾的用户定义整数和浮点字面量，当后面跟着运算符 + 或 - 时，必须在源代码中用空格或括号将它们与运算符分开。
+
+      long double operator""_E(long double);
+      long double operator""_a(long double);
+      int operator""_p(unsigned long long);
+
+      auto x = 1.0_E+2.0;   // error
+      auto y = 1.0_a+2.0;   // OK
+      auto z = 1.0_E +2.0;  // OK
+      auto q = (1.0_E)+2.0; // OK
+      auto w = 1_p+2;       // error
+      auto u = 1_p +2;      // OK
+      ```
+    如果我使用'@'作为后缀指示符如何？
+      1.0_E+2@km
+      1.0_E+2.0 => "1.0_E+2" ".0" => error
+字符串后缀:
+  最常用，挺有用的语法糖。而且实现无歧义. (**可以支持**)
+
+# clang
+## Stmt
 ├── NullStmt, CompoundStmt, ReturnStmt, IfStmt, ForStmt, WhileStmt, …
 └── Expr  (表达式也是一种语句)
     ├── BinaryOperator, UnaryOperator, …
@@ -216,7 +279,7 @@ Expr 本身是抽象类，继承自 Stmt，并添加了值类别、类型、依�
 C++ 特有节点：如 CXXOperatorCallExpr（重载运算符调用）继承自 CallExpr（自身继承自 Expr）。
 
 
-Decl
+## Decl
 ├── NamedDecl  (所有有名字的实体)
 │   ├── ValueDecl  (变量、函数、枚举常量等有值的实体)
 │   │   ├── VarDecl
@@ -245,7 +308,7 @@ TypeDecl 表示类型定义：RecordDecl 涵盖 struct/union/class，C++ 专用�
 FunctionDecl 下有 C++ 成员函数系列：CXXMethodDecl 是成员函数基类，再派生出构造/析构/转换函数等。
 
 
-Type (不可变的、引用计数的值对象)
+## Type (不可变的、引用计数的值对象)
 ├── BuiltinType        (int, float, void, …)
 ├── PointerType        (T*)
 ├── ReferenceType      (T&)
@@ -257,7 +320,13 @@ Type (不可变的、引用计数的值对象)
 ├── TypedefType
 └── 其他: ComplexType, VectorType, TemplateSpecializationType, …
 
-======IR
+## user-defined literal
+
+实际上 clang 对 "abc" _km 是允许的（token 相邻即可），
+但 "abc" _km 的语义要看是否被当作 UDL，clang 会按相邻 token 处理，空格不敏感.
+
+
+# IR
 based on Stack
   iload/push a
   iload/push b
@@ -268,7 +337,10 @@ based on Register(unlimited virtual registers)
 %2 = load b
 %3 = add %1, %2
 
-====cmake
+
+
+
+# cmake
 cmake.exe -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_MAKE_PROGRAM=E:/Clion/CLion 2025.2.1/bin/ninja/win/x64/ninja.exe" -G Ninja -S . -B ./cmake-build-debug
 
  cmake.exe --build ./cmake-build-debug --target haic -j 3

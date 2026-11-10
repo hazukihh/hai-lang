@@ -177,6 +177,14 @@ Stmt::Ptr parse_expr_stmt(Lexer* lexer)
   }
 
   auto left = parse_expression(lexer,0);
+
+  // TODO: how to deal with the error sync for "0b1.1;/* error expr */ another_expr;"
+  //    return nullptr / mono_state Or sync immediately here??
+  // if (!left || std::holds_alternative<std::monostate>(left->data))
+  // {
+  //   return nullptr;
+  // }
+
   lexer->expect(ETK_Semi);
 
 

@@ -1,0 +1,26 @@
+0b1.1;//error,TODO: why ignore "0b1.2" => in "parse_expr_stmt()"
+0b1.2;
+
+// invalid char in bin/oct literal
+var e1 = 0b1.2;
+var e2 = 0o1.1;
+// invalid underscore placement
+var d0c = 0_.0;
+var d3e = 1.0e_1;
+var d4e = 1.0e+_1;
+var d5c = 1.0e-1_;
+var d6c = 1__0.0e-1;
+var d7e = 0_x0.0; // invalid char '.' in suffix "x0.0"
+var d8e = 0x_0.0;
+var d9c = 0x0.0_p1;
+var d10e = 10.0e_-1; // tokens("10.0e_" "-" "1") => "10.0.e_" error
+
+var t1e = 0_x_1_2_._3_p_-_1_;
+var t2e = 0x_1_2_._3_p_-_1_;
+var t3e = 0x1_2_._3_p_-_1_;
+var t4e = 0x1_2_._3_p-_1_;
+var t5c = 0x1_2_._3_p-1_;
+
+// TODO: c/c++中 hex小数 必须要有指数p,否则无效
+var hex_fl1 = 0x1.5e3;
+var hex_fl2 = 0x1.5e3p0;

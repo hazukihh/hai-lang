@@ -20,7 +20,7 @@ enum ETypeTag
 inline bool IsKeywordBaseType(ETokenType e)
 {
   // TODO: assert({s8 u8 ...  string bool void} is consecutive)
-  HAI_ASSERT(ETK_s8 + 1 == ETK_u8);
+  static_assert(ETK_s8 + 1 == ETK_u8);
 
   return ETK_s8 <= e && e <= ETK_void;
 }
@@ -135,7 +135,7 @@ inline TypeInfo* parse_type(Lexer* lexer)
     if (next_tok.type == ETK_RBracket)
     {
       info->arr.size = 0;
-    } else if (next_tok.type == ETK_IntLit){
+    } else if (next_tok.type == NumberLit){
       info->arr.size = parse_number<size_t>(next_tok.text);
       lexer->expect(ETK_RBracket);
     } else {

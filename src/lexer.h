@@ -64,6 +64,8 @@ struct Lexer
   Token expect(ETokenType expected);
 
 private:
+  template<bool isStrLit>
+  Token Lex_StrLit_Or_CharLit();
   Token get_token_skip_unknown();
   void debug_check_text_loc_valid(const Token& t) const;
 };
